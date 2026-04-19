@@ -21,8 +21,13 @@ From project root:
 
 1. Install root tooling:
    - `npm install`
-2. Build and package:
+2. Install Windows cross-build prerequisites on Linux:
+   - `sudo dpkg --add-architecture i386`
+   - `sudo apt update && sudo apt install -y wine64 wine32:i386 xvfb`
+3. Build and package:
    - `npm run desktop:pack:win`
+
+The `desktop:pack:win` script runs `electron-builder` under `xvfb` on Linux automatically.
 
 Output location:
 
