@@ -1,0 +1,89 @@
+{
+  "name": "turfslot-desktop",
+  "version": "1.0.0",
+  "description": "TurfSlot desktop app with embedded Express API and SQLite",
+  "private": true,
+  "homepage": "https://turf.rumon.top",
+  "author": {
+    "name": "TurfSlot Team",
+    "email": "support@turf.rumon.top"
+  },
+  "type": "module",
+  "main": "desktop/main.js",
+  "scripts": {
+    "desktop:prepare": "npm --prefix server install && npm --prefix client install && cross-env VITE_API_URL=/api npm --prefix client run build",
+    "desktop:rebuild-native": "electron-rebuild -f -w better-sqlite3",
+    "desktop:reset-user": "node ./desktop/reset-user.js",
+    "desktop:restart": "pkill -f '/desktop/main.js' || true && npm run desktop:start",
+    "desktop:start": "npm run desktop:prepare && npm run desktop:rebuild-native && cross-env NODE_ENV=production SERVE_CLIENT=true electron ./desktop/main.js",
+    "desktop:pack:win": "npm run desktop:prepare && electron-builder --win nsis",
+    "desktop:pack:deb": "npm run desktop:prepare && electron-builder --linux deb"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.7.2",
+    "cloudinary": "^1.41.3",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "multer-storage-cloudinary": "^4.0.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-rebuild": "^3.2.9"
+  },
+  "build": {
+    "appId": "com.nivrosys.turfslot",
+    "productName": "TurfSlot",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "server/**/*",
+      "client/dist/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "maintainer": "TurfSlot Team <support@turf.rumon.top>",
+      "category": "Utility",
+      "executableArgs": [
+        "--no-sandbox"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    }
+  }
+}
