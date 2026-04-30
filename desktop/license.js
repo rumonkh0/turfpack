@@ -6,7 +6,9 @@
  * making it difficult for casual users to extract.
  */
 import crypto from "crypto";
-import machineIdPkg from "node-machine-id";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const machineIdPkg = require("node-machine-id");
 const { machineIdSync } = machineIdPkg;
 
 // ─── Secret salt – only you (the developer) know this ───────────────
