@@ -13,6 +13,8 @@ app.commandLine.appendSwitch("disable-dev-shm-usage");
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Path to bundled desktop assets (app icon)
+const iconPath = path.join(__dirname, "assets", "icon.png");
 let server;
 let appPort = Number(process.env.PORT || 5000);
 let expressApp;
@@ -83,7 +85,7 @@ const createWindow = async () => {
     minWidth: 1080,
     minHeight: 720,
     autoHideMenuBar: true,
-    // icon: path.join(__dirname, "assets/icon.png"),
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       contextIsolation: true,
       sandbox: false,
@@ -109,6 +111,15 @@ app.whenReady().then(async () => {
 
     process.env.SQLITE_PATH = path.join(dbDir, "turfslot.sqlite");
     console.log(`Setting database path to: ${process.env.SQLITE_PATH}`);
+
+    // Set Windows AppUserModelId so the taskbar/dock shows the correct icon
+    if (process.platform === "win32") {
+      try {
+        app.setAppUserModelId("com.turfslot.app");
+      } catch (err) {
+        console.warn("Failed to set AppUserModelId:", err);
+      }
+    }
 
     // ── License verification ──────────────────────────────────────
     const machineId = getMachineId();

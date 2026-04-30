@@ -41,6 +41,7 @@
     "electron-rebuild": "^3.2.9"
   },
   "build": {
+    "icon": "desktop/assets/icon.png",
     "appId": "com.nivrosys.turfslot",
     "productName": "TurfSlot",
     "directories": {
