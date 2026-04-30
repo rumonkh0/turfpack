@@ -52,11 +52,11 @@
       "!desktop/keygen.js",
       "server/**/*",
       "client/dist/**/*",
-      "package.json",
-      "node_modules/**/*"
+      "package.json"
     ],
     "asarUnpack": [
-      "**/*.node"
+      "**/*.node",
+      "node_modules/node-machine-id/**/*"
     ],
     "win": {
       "signAndEditExecutable": false,
