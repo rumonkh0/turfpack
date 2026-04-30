@@ -17,6 +17,7 @@ import productRoutes from "./routes/productRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import licenseRoutes from "./routes/licenseRoutes.js";
 import errorHandler from "./middleware/error.js";
 
 const app = express();
@@ -107,6 +108,11 @@ app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/upload", uploadRoutes);
+
+// License routes (desktop mode only)
+if (process.env.SQLITE_PATH) {
+  app.use("/api/license", licenseRoutes);
+}
 
 // Serve local uploaded files (used when Cloudinary is not configured)
 if (fs.existsSync(localUploadDir)) {

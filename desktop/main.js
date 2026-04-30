@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import connectDB from "../server/config/db.js";
+import { getMachineId, verifyLicense } from "./license.js";
 
 // Disable sandbox to avoid SUID errors on Linux
 app.commandLine.appendSwitch("no-sandbox");
@@ -82,6 +83,7 @@ const createWindow = async () => {
     minWidth: 1080,
     minHeight: 720,
     autoHideMenuBar: true,
+    // icon: path.join(__dirname, "assets/icon.png"),
     webPreferences: {
       contextIsolation: true,
       sandbox: false,
@@ -108,7 +110,26 @@ app.whenReady().then(async () => {
     process.env.SQLITE_PATH = path.join(dbDir, "turfslot.sqlite");
     console.log(`Setting database path to: ${process.env.SQLITE_PATH}`);
 
+    // ── License verification ──────────────────────────────────────
+    const machineId = getMachineId();
+    process.env.MACHINE_ID = machineId;
+    console.log(`Machine ID: ${machineId}`);
+
+    // Start the server first (we need the DB to check the stored key)
     await startApiServer();
+
+    // Now check the stored license key from the database
+    const { getSetting } = await import("../server/db/sqlite.js");
+    const storedKey = getSetting("license_key");
+
+    if (storedKey && verifyLicense(machineId, storedKey)) {
+      process.env.LICENSE_STATUS = "active";
+      console.log("✅ License verified successfully.");
+    } else {
+      process.env.LICENSE_STATUS = "inactive";
+      console.log("🔒 License not activated. Showing activation screen.");
+    }
+
     await createWindow();
 
     app.on("activate", async () => {

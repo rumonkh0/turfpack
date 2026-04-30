@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Toaster } from "sonner";
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -10,6 +11,8 @@ import ProductsLayout from './ProductsLayout';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import LicenseActivation from './pages/LicenseActivation';
+import { apiClient } from '@/api/client';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -71,6 +74,38 @@ const AuthenticatedApp = () => {
 
 
 function App() {
+  const [licenseChecked, setLicenseChecked] = useState(false);
+  const [licenseActive, setLicenseActive] = useState(true); // Default true for web mode
+
+  useEffect(() => {
+    apiClient.license.status().then((data) => {
+      if (data === null) {
+        // Web mode – no license endpoint exists, skip the check
+        setLicenseActive(true);
+      } else {
+        setLicenseActive(data.activated);
+      }
+      setLicenseChecked(true);
+    });
+  }, []);
+
+  // Show loading while checking license
+  if (!licenseChecked) {
+    return (
+      <div style={{
+        position: "fixed", inset: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "#0f172a",
+      }}>
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Show license activation screen if not activated (desktop mode only)
+  if (!licenseActive) {
+    return <LicenseActivation onActivated={() => setLicenseActive(true)} />;
+  }
 
   return (
     <AuthProvider>

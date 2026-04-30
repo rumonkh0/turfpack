@@ -100,5 +100,28 @@ export const apiClient = {
         return handleResponse(res);
       }
     }
-  }
+  },
+  license: {
+    status: async () => {
+      try {
+        const res = await fetch(`${API_URL}/license/status`);
+        if (res.status === 404) return null; // Web mode – no license endpoint
+        const data = await res.json();
+        if (!data.success) return null;
+        return data.data;
+      } catch {
+        return null; // Web mode or network error
+      }
+    },
+    activate: async (licenseKey) => {
+      const res = await fetch(`${API_URL}/license/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ licenseKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Activation failed');
+      return data.data;
+    },
+  },
 };

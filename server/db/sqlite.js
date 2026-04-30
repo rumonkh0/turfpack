@@ -441,6 +441,11 @@ export const initDatabase = () => {
     ON bookings (turf_id, date, start_hour, end_hour);
 
     CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
 
   // Seed default desktop users if they don't exist
@@ -606,3 +611,20 @@ export const clearAllTables = () => {
 };
 
 export const getDbPath = () => getDbFilePath();
+
+export const getSetting = (key) => {
+  const database = getDatabase();
+  const row = database
+    .prepare("SELECT value FROM app_settings WHERE key = ?")
+    .get(key);
+  return row ? row.value : null;
+};
+
+export const setSetting = (key, value) => {
+  const database = getDatabase();
+  database
+    .prepare(
+      "INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    )
+    .run(key, value);
+};
