@@ -5,6 +5,8 @@ import { fileURLToPath } from "url";
 import connectDB from "../server/config/db.js";
 import { getMachineId, verifyLicense } from "./license.js";
 
+app.setName("TurfSlot");
+
 // Disable sandbox to avoid SUID errors on Linux
 app.commandLine.appendSwitch("no-sandbox");
 app.commandLine.appendSwitch("disable-setuid-sandbox");

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=TurfSlot
+Exec=/opt/TurfSlot/turfslot-desktop %U
+Icon=turfslot-desktop
+Categories=Utility;
+StartupWMClass=TurfSlot
+StartupNotify=true
