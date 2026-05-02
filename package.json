@@ -15,9 +15,9 @@
     "desktop:rebuild-native": "electron-rebuild -f -w better-sqlite3",
     "desktop:reset-user": "node ./desktop/reset-user.js",
     "desktop:restart": "pkill -f '/desktop/main.js' || true && npm run desktop:start",
-    "desktop:start": "npm run desktop:prepare && npm run desktop:rebuild-native && cross-env NODE_ENV=production SERVE_CLIENT=true electron --no-sandbox ./desktop/main.js",
+    "desktop:start": "npm run desktop:prepare && npm run desktop:rebuild-native && cross-env NODE_ENV=production SERVE_CLIENT=true electron ./desktop/main.js",
     "desktop:pack:win": "npm run desktop:prepare && node ./desktop/pack-win.js",
-    "desktop:pack:deb": "npm run desktop:prepare && electron-builder --linux deb",
+    "desktop:pack:deb": "npm run desktop:prepare && node ./desktop/build-deb-manual.js",
     "desktop:pack:deb-native": "npm run desktop:prepare && node ./desktop/build-deb-manual.js"
   },
   "dependencies": {
@@ -61,6 +61,8 @@
     ],
     "win": {
       "signAndEditExecutable": false,
+      "certificateFile": null,
+      "certificatePassword": null,
       "target": [
         {
           "target": "nsis",
@@ -83,10 +85,7 @@
       "category": "Utility",
       "desktop": {
         "Icon": "/usr/share/icons/hicolor/1024x1024/apps/turfslot-desktop.png"
-      },
-      "executableArgs": [
-        "--no-sandbox"
-      ]
+      }
     },
     "deb": {
       "fpm": [
@@ -94,9 +93,12 @@
       ]
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TurfSlot"
     }
   }
 }

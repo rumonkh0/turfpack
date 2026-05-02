@@ -6,10 +6,6 @@ import connectDB from "../server/config/db.js";
 import { getMachineId, verifyLicense } from "./license.js";
 
 app.setName("TurfSlot");
-
-// Disable sandbox to avoid SUID errors on Linux
-app.commandLine.appendSwitch("no-sandbox");
-app.commandLine.appendSwitch("disable-setuid-sandbox");
 app.commandLine.appendSwitch("disable-dev-shm-usage");
 
 const __filename = fileURLToPath(import.meta.url);
@@ -90,7 +86,7 @@ const createWindow = async () => {
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
     },
   });
 
