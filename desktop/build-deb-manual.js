@@ -12,6 +12,7 @@ import {
   mkdirSync,
   readFileSync,
   existsSync,
+  chmodSync,
 } from "fs";
 import { join, resolve } from "path";
 
@@ -21,6 +22,10 @@ try {
   const releaseDir = resolve("./release");
   const debFile = join(releaseDir, `turfslot-desktop_${version}_amd64.deb`);
   const stagingDir = join(releaseDir, "linux-unpacked");
+
+  // First, build the unpacked app using electron-builder
+  console.log("📦 Preparing app with electron-builder...");
+  execSync("electron-builder --linux --dir", { stdio: "inherit" });
 
   if (!existsSync(stagingDir)) {
     throw new Error(`Staging directory not found: ${stagingDir}`);
@@ -45,6 +50,23 @@ Description: TurfSlot desktop app with embedded Express API and SQLite
 `;
 
   writeFileSync(join(controlDir, "control"), controlContent);
+
+  const postinstContent = `#!/bin/sh
+set -e
+
+SANDBOX_BIN="/opt/TurfSlot/chrome-sandbox"
+
+if [ -f "$SANDBOX_BIN" ]; then
+  chown root:root "$SANDBOX_BIN"
+  chmod 4755 "$SANDBOX_BIN"
+fi
+
+exit 0
+`;
+
+  const postinstPath = join(controlDir, "postinst");
+  writeFileSync(postinstPath, postinstContent);
+  chmodSync(postinstPath, 0o755);
 
   // Copy app files to opt/TurfSlot
   const appDir = join(debianDir, "opt", "TurfSlot");
