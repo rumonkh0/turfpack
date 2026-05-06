@@ -52,7 +52,23 @@ if (isLinux) {
     process.exit(1);
   }
 
+  run("npm", ["rebuild", "better-sqlite3"], {
+    env: {
+      ...process.env,
+      npm_config_platform: "win32",
+      npm_config_arch: "x64",
+    },
+  });
+
   run("xvfb-run", ["-a", "electron-builder", "--win", "nsis"]);
 } else {
+  run("npm", ["rebuild", "better-sqlite3"], {
+    env: {
+      ...process.env,
+      npm_config_platform: "win32",
+      npm_config_arch: "x64",
+    },
+  });
+
   run("electron-builder", ["--win", "nsis"]);
 }

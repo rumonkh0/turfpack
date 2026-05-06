@@ -11,13 +11,25 @@ const require = createRequire(import.meta.url);
 
 const loadBetterSqlite3 = () => {
   if (process.versions?.electron) {
-    try {
-      // In desktop mode prefer root dependency (rebuilt for Electron ABI).
-      return require(
-        path.resolve(__dirname, "../../node_modules/better-sqlite3"),
-      );
-    } catch {
-      // Fallback to local resolution.
+    const candidatePaths = [
+      path.resolve(__dirname, "../../node_modules/better-sqlite3"),
+      path.resolve(
+        process.resourcesPath || "",
+        "app.asar.unpacked/node_modules/better-sqlite3",
+      ),
+      path.resolve(
+        process.resourcesPath || "",
+        "app.asar/node_modules/better-sqlite3",
+      ),
+      path.resolve(process.resourcesPath || "", "node_modules/better-sqlite3"),
+    ];
+
+    for (const candidatePath of candidatePaths) {
+      try {
+        return require(candidatePath);
+      } catch {
+        // Try the next packaged layout.
+      }
     }
   }
   return require("better-sqlite3");
