@@ -6,9 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react";
+import {
+  Plus,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
+  List,
+} from "lucide-react";
 import { format, addDays, subDays } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatTime } from "@/lib/utils";
 import BookingFormDialog from "@/components/bookings/BookingFormDialog";
 import BookingCalendar from "@/components/bookings/BookingCalendar";
 
@@ -46,7 +54,8 @@ export default function Bookings() {
   });
 
   const filtered = bookings.filter((b) => {
-    const matchSearch = !search || 
+    const matchSearch =
+      !search ||
       b.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
       b.customer_phone?.includes(search) ||
       b.turf_name?.toLowerCase().includes(search.toLowerCase());
@@ -59,9 +68,17 @@ export default function Bookings() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Bookings</h1>
-          <p className="text-sm text-gray-400 mt-0.5">{bookings.length} total bookings</p>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {bookings.length} total bookings
+          </p>
         </div>
-        <Button onClick={() => { setEditBooking(null); setShowForm(true); }} className="bg-emerald-600 hover:bg-emerald-700">
+        <Button
+          onClick={() => {
+            setEditBooking(null);
+            setShowForm(true);
+          }}
+          className="bg-emerald-600 hover:bg-emerald-700"
+        >
           <Plus className="w-4 h-4 mr-2" /> New Booking
         </Button>
       </div>
@@ -79,10 +96,18 @@ export default function Bookings() {
           </div>
           <Tabs value={filterStatus} onValueChange={setFilterStatus}>
             <TabsList className="bg-gray-100">
-              <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
-              <TabsTrigger value="confirmed" className="text-xs">Confirmed</TabsTrigger>
-              <TabsTrigger value="pending" className="text-xs">Pending</TabsTrigger>
-              <TabsTrigger value="completed" className="text-xs">Completed</TabsTrigger>
+              <TabsTrigger value="all" className="text-xs">
+                All
+              </TabsTrigger>
+              <TabsTrigger value="confirmed" className="text-xs">
+                Confirmed
+              </TabsTrigger>
+              <TabsTrigger value="pending" className="text-xs">
+                Pending
+              </TabsTrigger>
+              <TabsTrigger value="completed" className="text-xs">
+                Completed
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -91,7 +116,9 @@ export default function Bookings() {
             variant={view === "list" ? "default" : "outline"}
             size="sm"
             onClick={() => setView("list")}
-            className={view === "list" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+            className={
+              view === "list" ? "bg-emerald-600 hover:bg-emerald-700" : ""
+            }
           >
             <List className="w-4 h-4" />
           </Button>
@@ -99,7 +126,9 @@ export default function Bookings() {
             variant={view === "calendar" ? "default" : "outline"}
             size="sm"
             onClick={() => setView("calendar")}
-            className={view === "calendar" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+            className={
+              view === "calendar" ? "bg-emerald-600 hover:bg-emerald-700" : ""
+            }
           >
             <LayoutGrid className="w-4 h-4" />
           </Button>
@@ -108,22 +137,38 @@ export default function Bookings() {
 
       {view === "calendar" && (
         <div className="flex items-center gap-3 mb-2">
-          <Button variant="outline" size="sm" onClick={() => setSelectedDate(subDays(selectedDate, 7))}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSelectedDate(subDays(selectedDate, 7))}
+          >
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <span className="text-sm font-medium text-gray-700">
             Week of {format(selectedDate, "MMM d, yyyy")}
           </span>
-          <Button variant="outline" size="sm" onClick={() => setSelectedDate(addDays(selectedDate, 7))}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSelectedDate(addDays(selectedDate, 7))}
+          >
             <ChevronRight className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedDate(new Date())}>Today</Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedDate(new Date())}
+          >
+            Today
+          </Button>
         </div>
       )}
 
       {lb ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-16 rounded-xl" />
+          ))}
         </div>
       ) : view === "calendar" ? (
         <BookingCalendar
@@ -138,36 +183,84 @@ export default function Bookings() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50">
-                  {["Customer", "Turf", "Date & Time", "Price", "Status", "Payment"].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{h}</th>
+                  {[
+                    "Customer",
+                    "Turf",
+                    "Date & Time",
+                    "Price",
+                    "Status",
+                    "Payment",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider"
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-12 text-sm text-gray-400">No bookings found</td></tr>
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="text-center py-12 text-sm text-gray-400"
+                    >
+                      No bookings found
+                    </td>
+                  </tr>
                 )}
                 {filtered.map((b) => (
                   <tr
                     key={b.id}
                     className="hover:bg-gray-50/50 cursor-pointer transition-colors"
-                    onClick={() => { setEditBooking(b); setShowForm(true); }}
+                    onClick={() => {
+                      setEditBooking(b);
+                      setShowForm(true);
+                    }}
                   >
                     <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-gray-800">{b.customer_name}</p>
-                      <p className="text-xs text-gray-400">{b.customer_phone}</p>
+                      <p className="text-sm font-medium text-gray-800">
+                        {b.customer_name}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {b.customer_phone}
+                      </p>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{b.turf_name}</td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm text-gray-700">{b.date ? format(new Date(b.date), "MMM d, yyyy") : ""}</p>
-                      <p className="text-xs text-gray-400">{b.start_hour}:00 – {b.end_hour}:00</p>
-                    </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-gray-800">৳{b.total_price?.toLocaleString() || 0}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant="outline" className={`text-[10px] ${statusColors[b.status] || ""}`}>{b.status}</Badge>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {b.turf_name}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge className={`text-[10px] ${payColors[b.payment_status] || ""}`}>{b.payment_status}</Badge>
+                      <p className="text-sm text-gray-700">
+                        {b.date ? format(new Date(b.date), "MMM d, yyyy") : ""}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {formatTime(b.start_hour)} – {formatTime(b.end_hour)}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-800">
+                      ৳{b.total_price?.toLocaleString() || 0}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] ${statusColors[b.status] || ""}`}
+                      >
+                        {b.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        className={`text-[10px] ${payColors[b.payment_status] || ""}`}
+                      >
+                        {b.payment_status}
+                      </Badge>
+                      {b.payment_status === "partial" && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          ৳{b.paid_amount || 0} / ৳{b.total_price || 0}
+                        </p>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -183,7 +276,9 @@ export default function Bookings() {
         turfs={turfs}
         existingBookings={bookings}
         booking={editBooking}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: ["bookings"] })}
+        onSaved={() =>
+          queryClient.invalidateQueries({ queryKey: ["bookings"] })
+        }
       />
     </div>
   );

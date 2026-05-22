@@ -9,9 +9,9 @@ import {
   getDbPath,
 } from "../server/db/sqlite.js";
 
-const email = process.env.DESKTOP_USER_EMAIL || "rumon@turfslot.com";
+const email = process.env.DESKTOP_USER_EMAIL || "admin@mail.com";
 const password = process.env.DESKTOP_USER_PASSWORD || "00000000";
-const fullName = process.env.DESKTOP_USER_NAME || "Rumon";
+const fullName = process.env.DESKTOP_USER_NAME || "Admin";
 
 if (!process.env.SQLITE_PATH) {
   process.env.SQLITE_PATH = path.join(

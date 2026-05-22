@@ -15,7 +15,7 @@
     "desktop:rebuild-native": "electron-rebuild -f -w better-sqlite3",
     "desktop:reset-user": "node ./desktop/reset-user.js",
     "desktop:restart": "pkill -f '/desktop/main.js' || true && npm run desktop:start",
-    "desktop:start": "npm run desktop:prepare && npm run desktop:rebuild-native && cross-env NODE_ENV=production SERVE_CLIENT=true electron ./desktop/main.js",
+    "desktop:start": "npm run desktop:prepare && npm run desktop:rebuild-native && cross-env NODE_ENV=production SERVE_CLIENT=true electron ./desktop/main.js --no-sandbox",
     "desktop:pack:win": "npm run desktop:prepare && node ./desktop/pack-win.js",
     "desktop:pack:deb": "npm run desktop:prepare && node ./desktop/build-deb-manual.js",
     "desktop:pack:deb-native": "npm run desktop:prepare && node ./desktop/build-deb-manual.js"

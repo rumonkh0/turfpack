@@ -1,0 +1,29 @@
+DEBUG TRACE FOR USERS PAGE
+
+When component renders:
+- Component starts (isDesktop check)
+- Check if isLoading OR !editingUser
+  - If true: show spinner
+  - If false: render form
+
+First effect (on mount/users change):
+- Runs when: editUserId, editRefreshKey, users, isDesktop change
+- For desktop: finds admin user, calls setEditingUser(adminUser) + setFormData
+
+Second effect (on editingUser change):
+- Syncs formData to match editingUser
+
+Question: Is users array empty or not loading?
+- Check if query is failing to fetch /api/users
+- Check if users.length > 0
+
+Possible issue: effect dependency array might be causing re-runs
+- First effect depends on [editUserId, editRefreshKey, users, isDesktop]
+- Second effect depends on [editingUser]
+- When editingUser changes, first effect re-runs? No, only if its deps change
+
+CHECK:
+1. Does apiClient.entities.User.list() return data?
+2. Does users array have items after query completes?
+3. Does setEditingUser actually get called?
+4. Does formData get populated?

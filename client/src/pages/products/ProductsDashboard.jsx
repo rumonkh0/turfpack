@@ -81,7 +81,16 @@ export default function ProductsDashboard() {
   const topProducts = Object.entries(productSales).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   const handlePrint = () => {
-    const printWindow = window.open("", "_blank");
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "absolute";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "-9999px";
+    iframe.style.width = "1024px";
+    iframe.style.height = "768px";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document || iframe.contentDocument;
     const printDate = format(new Date(), "dd MMM yyyy, hh:mm a");
 
     const todayRevenue = salesData[salesData.length - 1]?.revenue || 0;
@@ -107,7 +116,8 @@ export default function ProductsDashboard() {
       </tr>`
     ).join("");
 
-    printWindow.document.write(`
+    doc.open();
+    doc.write(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -213,9 +223,13 @@ export default function ProductsDashboard() {
       </body>
       </html>
     `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => printWindow.print(), 300);
+    doc.close();
+
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+      iframe.contentWindow.print();
+      document.body.removeChild(iframe);
+    }, 300);
   };
 
   return (

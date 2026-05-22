@@ -1,5 +1,6 @@
 import asyncHandler from "../middleware/async.js";
-import { listRecords, createRecord, incrementColumn } from "../db/sqlite.js";
+import ErrorResponse from "../utils/errorResponse.js";
+import { listRecords, createRecord, incrementColumn, findById, updateById } from "../db/sqlite.js";
 
 // @desc    Get all orders
 // @route   GET /api/orders
@@ -33,4 +34,21 @@ export const createOrder = asyncHandler(async (req, res, next) => {
   }
 
   res.status(201).json({ success: true, data: order });
+});
+
+// @desc    Update order
+// @route   PUT /api/orders/:id
+// @access  Private/Admin
+export const updateOrder = asyncHandler(async (req, res, next) => {
+  let order = findById("orders", req.params.id);
+
+  if (!order) {
+    return next(
+      new ErrorResponse(`Order not found with id of ${req.params.id}`, 404),
+    );
+  }
+
+  order = updateById("orders", req.params.id, req.body);
+
+  res.status(200).json({ success: true, data: order });
 });

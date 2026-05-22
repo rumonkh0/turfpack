@@ -110,17 +110,21 @@ const TABLE_CONFIG = {
       "end_hour",
       "duration_hours",
       "total_price",
+      "paid_amount",
+      "payment_history",
       "status",
       "payment_status",
       "payment_method",
       "notes",
       "txn_id",
     ],
-    jsonColumns: [],
+    jsonColumns: ["payment_history"],
     defaults: {
       status: "confirmed",
       payment_status: "unpaid",
       payment_method: "bkash",
+      paid_amount: 0,
+      payment_history: [],
     },
     allowedSort: [
       "id",
@@ -381,6 +385,8 @@ export const initDatabase = () => {
       end_hour INTEGER NOT NULL,
       duration_hours REAL,
       total_price REAL NOT NULL,
+      paid_amount REAL NOT NULL DEFAULT 0,
+      payment_history TEXT,
       status TEXT NOT NULL DEFAULT 'confirmed',
       payment_status TEXT NOT NULL DEFAULT 'unpaid',
       payment_method TEXT NOT NULL DEFAULT 'bkash',
@@ -459,6 +465,49 @@ export const initDatabase = () => {
       value TEXT NOT NULL
     );
   `);
+
+  // Migration: ensure bookings table has paid_amount and payment_history
+  try {
+    const bookingsColumns = db.prepare("PRAGMA table_info(bookings)").all();
+    const columnNames = bookingsColumns.map((col) => col.name);
+
+    if (
+      !columnNames.includes("paid_amount") ||
+      !columnNames.includes("payment_history")
+    ) {
+      console.log("⚠️ Bookings table missing columns. Migrating...");
+      db.exec("DROP TABLE IF EXISTS bookings;");
+      db.exec(`
+        CREATE TABLE bookings (
+          id TEXT PRIMARY KEY,
+          turf_id TEXT NOT NULL,
+          turf_name TEXT,
+          customer_name TEXT NOT NULL,
+          customer_phone TEXT NOT NULL,
+          customer_email TEXT,
+          date TEXT NOT NULL,
+          start_hour INTEGER NOT NULL,
+          end_hour INTEGER NOT NULL,
+          duration_hours REAL,
+          total_price REAL NOT NULL,
+          paid_amount REAL NOT NULL DEFAULT 0,
+          payment_history TEXT,
+          status TEXT NOT NULL DEFAULT 'confirmed',
+          payment_status TEXT NOT NULL DEFAULT 'unpaid',
+          payment_method TEXT NOT NULL DEFAULT 'bkash',
+          notes TEXT,
+          txn_id TEXT,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_bookings_turf_date_time
+        ON bookings (turf_id, date, start_hour, end_hour);
+      `);
+      console.log("✅ Bookings table migrated successfully");
+    }
+  } catch (err) {
+    console.error("⚠️ Migration check failed:", err.message);
+  }
 
   // Seed default desktop users if they don't exist
   try {

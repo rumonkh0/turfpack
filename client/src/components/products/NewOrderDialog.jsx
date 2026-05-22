@@ -6,12 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiClient } from "@/api/client";
 import { Loader2, Plus, Trash2, Search } from "lucide-react";
+import { format } from "date-fns";
+import { printInvoice } from "./SalesPOS";
 
 export default function NewOrderDialog({ open, onOpenChange, products, onSaved }) {
   const [search, setSearch] = useState("");
   const [items, setItems] = useState([]);
   const [customer, setCustomer] = useState({ name: "", phone: "" });
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [status, setStatus] = useState("confirmed");
+  const [paymentStatus, setPaymentStatus] = useState("paid");
   const [saving, setSaving] = useState(false);
 
   const filteredProducts = products.filter(
@@ -51,29 +55,59 @@ export default function NewOrderDialog({ open, onOpenChange, products, onSaved }
 
   const handleSave = async () => {
     setSaving(true);
-    await apiClient.entities.Order.create({
-      customer_name: customer.name,
-      customer_phone: customer.phone,
-      items,
-      total_amount: total,
-      payment_method: paymentMethod,
-      payment_status: "paid",
-      status: "confirmed",
-    });
-    // Update stock
-    for (const item of items) {
-      const product = products.find((p) => p.id === item.product_id);
-      if (product) {
-        await apiClient.entities.Product.update(item.product_id, {
-          stock: Math.max(0, (product.stock || 0) - item.quantity),
-        });
+    const invoiceNo = `INV-${Date.now().toString().slice(-6)}`;
+    const date = format(new Date(), "dd MMM yyyy, hh:mm a");
+    const invoiceData = {
+      items: [...items],
+      customer: { ...customer },
+      employee: "Admin",
+      paymentMethod,
+      total,
+      invoiceNo,
+      date,
+      status,
+      paymentStatus
+    };
+
+    // 1. Print instantly
+    // printInvoice(invoiceData);
+
+    try {
+      // 2. Perform DB writes in the background
+      await apiClient.entities.Order.create({
+        customer_name: customer.name,
+        customer_phone: customer.phone,
+        items,
+        total_amount: total,
+        payment_method: paymentMethod,
+        payment_status: paymentStatus,
+        status: status,
+      });
+      // Update stock (only if order is active/not cancelled)
+      if (status !== "cancelled") {
+        for (const item of items) {
+          const product = products.find((p) => p.id === item.product_id);
+          if (product) {
+            await apiClient.entities.Product.update(item.product_id, {
+              stock: Math.max(0, (product.stock || 0) - item.quantity),
+            });
+          }
+        }
       }
+    } catch (err) {
+      console.error("[NewOrderDialog] Error saving order:", err);
     }
-    setSaving(false);
-    setItems([]);
-    setCustomer({ name: "", phone: "" });
-    onSaved();
-    onOpenChange(false);
+
+    // 3. Reset states after focus has stabilized on print preview
+    setTimeout(() => {
+      setSaving(false);
+      setItems([]);
+      setCustomer({ name: "", phone: "" });
+      setStatus("confirmed");
+      setPaymentStatus("paid");
+      onSaved();
+      onOpenChange(false);
+    }, 1000);
   };
 
   return (
@@ -158,6 +192,29 @@ export default function NewOrderDialog({ open, onOpenChange, products, onSaved }
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Order Status</Label>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Payment Status</Label>
+                  <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="unpaid">Unpaid</SelectItem>
+                      <SelectItem value="partial">Partial</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </div>

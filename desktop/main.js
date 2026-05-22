@@ -21,10 +21,11 @@ const startApiServer = async () => {
   // Set production environment variables
   process.env.NODE_ENV = "production";
   process.env.SERVE_CLIENT = "true";
+  process.env.DESKTOP_TRUSTED_MODE = "true";
   process.env.JWT_SECRET = "supersecretkey_change_me_in_production";
-  process.env.DEFAULT_ADMIN_NAME = process.env.DEFAULT_ADMIN_NAME || "Rumon";
+  process.env.DEFAULT_ADMIN_NAME = process.env.DEFAULT_ADMIN_NAME || "Admin";
   process.env.DEFAULT_ADMIN_EMAIL =
-    process.env.DEFAULT_ADMIN_EMAIL || "rumon@turfslot.com";
+    process.env.DEFAULT_ADMIN_EMAIL || "admin@mail.com";
   process.env.DEFAULT_ADMIN_PASSWORD =
     process.env.DEFAULT_ADMIN_PASSWORD || "00000000";
 
@@ -155,6 +156,12 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
+  }
+});
+
+app.on("before-quit", () => {
+  if (server) {
+    server.close();
   }
 });
 

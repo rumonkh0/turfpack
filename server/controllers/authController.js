@@ -2,7 +2,14 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import asyncHandler from "../middleware/async.js";
 import ErrorResponse from "../utils/errorResponse.js";
-import { createRecord, findOne, findById } from "../db/sqlite.js";
+import {
+  createRecord,
+  findOne,
+  findById,
+  getSetting,
+  setSetting,
+  updateById,
+} from "../db/sqlite.js";
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -51,6 +58,71 @@ export const login = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse("Invalid credentials", 401));
   }
 
+  sendTokenResponse(user, 200, res);
+});
+
+// @desc    Desktop trusted auto-login (license-gated)
+// @route   POST /api/auth/desktop-auto-login
+// @access  Public (desktop only)
+export const desktopAutoLogin = asyncHandler(async (req, res, next) => {
+  if (process.env.DESKTOP_TRUSTED_MODE !== "true") {
+    return next(new ErrorResponse("Route not available", 404));
+  }
+
+  if (process.env.LICENSE_STATUS !== "active") {
+    return next(new ErrorResponse("License activation required", 403));
+  }
+
+  const configuredEmail = process.env.DEFAULT_ADMIN_EMAIL || "admin@admin.com";
+  const configuredName = process.env.DEFAULT_ADMIN_NAME || "Desktop Admin";
+  const configuredPassword = process.env.DEFAULT_ADMIN_PASSWORD || "00000000";
+
+  let user = null;
+  const desktopUserId = getSetting("desktop_user_id");
+
+  const ensureAdminUser = async (candidate) => {
+    if (!candidate) return null;
+
+    if (candidate.role !== "admin") {
+      candidate = updateById("users", candidate.id, { role: "admin" });
+    }
+
+    if (candidate.status !== "active") {
+      candidate = updateById("users", candidate.id, { status: "active" });
+    }
+
+    return candidate;
+  };
+
+  // Prefer the configured desktop admin account so old seeded emails don't leak back in.
+  user = await ensureAdminUser(
+    findOne("users", "email = ?", [configuredEmail]),
+  );
+
+  // If the configured email is missing, fall back to the persisted desktop user only if it is admin.
+  if (!user && desktopUserId) {
+    user = await ensureAdminUser(findById("users", desktopUserId));
+  }
+
+  // Last chance fallback to the legacy admin seed email.
+  if (!user) {
+    user = await ensureAdminUser(
+      findOne("users", "email = ?", ["admin@admin.com"]),
+    );
+  }
+
+  if (!user) {
+    const hashedPassword = await bcrypt.hash(configuredPassword, 10);
+    user = createRecord("users", {
+      full_name: configuredName,
+      email: configuredEmail,
+      password: hashedPassword,
+      role: "admin",
+      status: "active",
+    });
+  }
+
+  setSetting("desktop_user_id", user.id);
   sendTokenResponse(user, 200, res);
 });
 

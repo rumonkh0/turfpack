@@ -74,9 +74,14 @@ export const createBooking = asyncHandler(async (req, res, next) => {
 
   // Create payment record if status is paid or partial
   if (["paid", "partial"].includes(req.body.payment_status)) {
+    const paymentAmount =
+      req.body.payment_status === "partial"
+        ? Number(req.body.paid_amount || 0)
+        : Number(req.body.total_price || 0);
+
     createRecord("payments", {
       booking_id: booking.id,
-      amount: req.body.total_price,
+      amount: paymentAmount,
       status: "completed",
       method: req.body.payment_method || "bkash",
       transaction_id: req.body.txn_id,

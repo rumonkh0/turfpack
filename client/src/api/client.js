@@ -1,8 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const getAuthHeader = () => {
-  const token = localStorage.getItem('token');
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
 const handleResponse = async (response) => {
@@ -20,36 +20,38 @@ const entityApi = (endpoint) => ({
   list: async (sort, limit) => {
     let url = `${API_URL}/${endpoint}`;
     const params = new URLSearchParams();
-    if (sort) params.append('sort', sort);
-    if (limit) params.append('limit', limit);
+    if (sort) params.append("sort", sort);
+    if (limit) params.append("limit", limit);
     if (params.toString()) url += `?${params.toString()}`;
 
     const res = await fetch(url, { headers: getAuthHeader() });
     return handleResponse(res);
   },
   get: async (id) => {
-    const res = await fetch(`${API_URL}/${endpoint}/${id}`, { headers: getAuthHeader() });
+    const res = await fetch(`${API_URL}/${endpoint}/${id}`, {
+      headers: getAuthHeader(),
+    });
     return handleResponse(res);
   },
   create: async (payload) => {
     const res = await fetch(`${API_URL}/${endpoint}`, {
-      method: 'POST',
-      headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { ...getAuthHeader(), "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     return handleResponse(res);
   },
   update: async (id, payload) => {
     const res = await fetch(`${API_URL}/${endpoint}/${id}`, {
-      method: 'PUT',
-      headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+      method: "PUT",
+      headers: { ...getAuthHeader(), "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     return handleResponse(res);
   },
   delete: async (id) => {
     const res = await fetch(`${API_URL}/${endpoint}/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: getAuthHeader(),
     });
     return handleResponse(res);
@@ -59,47 +61,68 @@ const entityApi = (endpoint) => ({
 export const apiClient = {
   auth: {
     me: async () => {
-      const res = await fetch(`${API_URL}/auth/me`, { headers: getAuthHeader() });
+      const res = await fetch(`${API_URL}/auth/me`, {
+        headers: getAuthHeader(),
+      });
       return handleResponse(res);
     },
     login: async (email, password) => {
       const res = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Login failed');
-      localStorage.setItem('token', data.token);
+      if (!res.ok) throw new Error(data.error || "Login failed");
+      localStorage.setItem("token", data.token);
+      return data.user;
+    },
+    desktopAutoLogin: async () => {
+      const res = await fetch(`${API_URL}/auth/desktop-auto-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        const error = new Error(data.error || "Desktop auto-login failed");
+        error.status = res.status;
+        throw error;
+      }
+
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+      }
+
       return data.user;
     },
     logout: () => {
-      localStorage.removeItem('token');
-      window.location.href = '/';
+      localStorage.removeItem("token");
+      window.location.href = "/";
     },
   },
   entities: {
-    Product: entityApi('products'),
-    Order: entityApi('orders'),
-    Booking: entityApi('bookings'),
-    Turf: entityApi('turfs'),
-    Tournament: entityApi('tournaments'),
-    Payment: entityApi('payments'),
-    User: entityApi('users'),
+    Product: entityApi("products"),
+    Order: entityApi("orders"),
+    Booking: entityApi("bookings"),
+    Turf: entityApi("turfs"),
+    Tournament: entityApi("tournaments"),
+    Payment: entityApi("payments"),
+    User: entityApi("users"),
   },
   integrations: {
     Core: {
       UploadFile: async ({ file }) => {
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append("file", file);
         const res = await fetch(`${API_URL}/upload`, {
-          method: 'POST',
+          method: "POST",
           headers: getAuthHeader(),
           body: formData,
         });
         return handleResponse(res);
-      }
-    }
+      },
+    },
   },
   license: {
     status: async () => {
@@ -115,12 +138,12 @@ export const apiClient = {
     },
     activate: async (licenseKey) => {
       const res = await fetch(`${API_URL}/license/activate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ licenseKey }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Activation failed');
+      if (!res.ok) throw new Error(data.error || "Activation failed");
       return data.data;
     },
   },

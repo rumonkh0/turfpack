@@ -22,96 +22,122 @@ const categoryColors = {
   other: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
-function printInvoice({ items, customer, employee, paymentMethod, total, invoiceNo, date }) {
-  const w = window.open("", "_blank");
-  const rows = items.map((i) =>
-    `<tr>
-      <td>${i.product_name}</td>
-      <td style="text-align:center">${i.quantity}</td>
-      <td style="text-align:right">৳${i.unit_price.toLocaleString()}</td>
-      <td style="text-align:right">৳${i.subtotal.toLocaleString()}</td>
-    </tr>`
-  ).join("");
+export function printInvoice(data) {
+  if (!data) return;
+  const { items = [], customer = {}, employee = "", paymentMethod = "", total = 0, invoiceNo = "", date = "", status = "confirmed", paymentStatus = "paid" } = data;
 
-  w.document.write(`<!DOCTYPE html><html><head><title>Invoice #${invoiceNo}</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Segoe UI',Arial,sans-serif; color:#111; padding:32px; font-size:13px; }
-    .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #7c3aed; }
-    .brand-icon { width:40px; height:40px; background:#7c3aed; border-radius:10px; display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:14px; margin-bottom:6px; }
-    .brand-name { font-size:18px; font-weight:700; }
-    .brand-sub { font-size:10px; color:#9ca3af; }
-    .invoice-title { font-size:22px; font-weight:700; color:#7c3aed; text-align:right; }
-    .invoice-no { font-size:11px; color:#6b7280; text-align:right; margin-top:3px; }
-    .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px; }
-    .info-box { background:#f9fafb; border-radius:10px; padding:14px; }
-    .info-label { font-size:10px; text-transform:uppercase; color:#7c3aed; font-weight:600; letter-spacing:.05em; margin-bottom:6px; }
-    .info-val { font-size:13px; font-weight:600; color:#111; }
-    .info-sub { font-size:11px; color:#6b7280; margin-top:2px; }
-    table { width:100%; border-collapse:collapse; margin-bottom:20px; }
-    thead tr { background:#f5f3ff; }
-    th { padding:10px 12px; font-size:11px; text-transform:uppercase; color:#7c3aed; font-weight:600; letter-spacing:.04em; }
-    td { padding:10px 12px; font-size:12px; border-bottom:1px solid #f3f4f6; }
-    .total-row { background:#f5f3ff; }
-    .total-row td { font-weight:700; font-size:14px; color:#7c3aed; border:none; padding:12px; }
-    .footer { margin-top:32px; padding-top:14px; border-top:1px solid #e5e7eb; display:flex; justify-content:space-between; font-size:10px; color:#9ca3af; }
-    .thank-you { text-align:center; margin-top:20px; font-size:13px; color:#7c3aed; font-weight:600; }
-    @media print { body { padding:16px; } button { display:none !important; } }
-  </style>
-  </head><body>
-  <div class="header">
-    <div>
-      <div class="brand-icon">PS</div>
-      <div class="brand-name">ProductStore</div>
-      <div class="brand-sub">Management Platform</div>
-    </div>
-    <div>
-      <div class="invoice-title">INVOICE</div>
-      <div class="invoice-no">#${invoiceNo}</div>
-      <div class="invoice-no" style="margin-top:6px">${date}</div>
-    </div>
-  </div>
+  try {
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "absolute";
+    iframe.style.left = "-9999px";
+    iframe.style.top = "-9999px";
+    iframe.style.width = "1024px";
+    iframe.style.height = "768px";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
 
-  <div class="info-grid">
-    <div class="info-box">
-      <div class="info-label">Bill To</div>
-      <div class="info-val">${customer.name || "Walk-in Customer"}</div>
-      ${customer.phone ? `<div class="info-sub">📞 ${customer.phone}</div>` : ""}
-      ${customer.address ? `<div class="info-sub">📍 ${customer.address}</div>` : ""}
-    </div>
-    <div class="info-box">
-      <div class="info-label">Transaction Info</div>
-      <div class="info-val">Served by: ${employee || "—"}</div>
-      <div class="info-sub">Payment: ${paymentMethod}</div>
-      <div class="info-sub">Status: PAID</div>
-    </div>
-  </div>
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc) {
+      console.error("[printInvoice] Could not get iframe document context");
+      return;
+    }
 
-  <table>
-    <thead><tr>
-      <th style="text-align:left">Product</th>
-      <th style="text-align:center">Qty</th>
-      <th style="text-align:right">Unit Price</th>
-      <th style="text-align:right">Subtotal</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-    <tfoot>
-      <tr class="total-row">
-        <td colspan="3" style="text-align:right">TOTAL</td>
-        <td style="text-align:right">৳${total.toLocaleString()}</td>
-      </tr>
-    </tfoot>
-  </table>
+    const rows = (items || []).map((i) =>
+      `<tr>
+        <td>${i.product_name || ""}</td>
+        <td style="text-align:center">${i.quantity || 0}</td>
+        <td style="text-align:right">৳${(i.unit_price || 0).toLocaleString()}</td>
+        <td style="text-align:right">৳${(i.subtotal || 0).toLocaleString()}</td>
+      </tr>`
+    ).join("");
 
-  <div class="thank-you">Thank you for your purchase! 🙏</div>
-  <div class="footer">
-    <span>ProductStore · TurfSlot Platform</span>
-    <span>Invoice #${invoiceNo} · ${date}</span>
-  </div>
-  </body></html>`);
-  w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 300);
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head><title>Invoice #${invoiceNo}</title>
+    <style>
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family:'Segoe UI',Arial,sans-serif; color:#111; padding:32px; font-size:13px; }
+      .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; padding-bottom:16px; border-bottom:2px solid #7c3aed; }
+      .brand-icon { width:40px; height:40px; background:#7c3aed; border-radius:10px; display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:14px; margin-bottom:6px; }
+      .brand-name { font-size:18px; font-weight:700; }
+      .brand-sub { font-size:10px; color:#9ca3af; }
+      .invoice-title { font-size:22px; font-weight:700; color:#7c3aed; text-align:right; }
+      .invoice-no { font-size:11px; color:#6b7280; text-align:right; margin-top:3px; }
+      .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px; }
+      .info-box { background:#f9fafb; border-radius:10px; padding:14px; }
+      .info-label { font-size:10px; text-transform:uppercase; color:#7c3aed; font-weight:600; letter-spacing:.05em; margin-bottom:6px; }
+      .info-val { font-size:13px; font-weight:600; color:#111; }
+      .info-sub { font-size:11px; color:#6b7280; margin-top:2px; }
+      table { width:100%; border-collapse:collapse; margin-bottom:20px; }
+      thead tr { background:#f5f3ff; }
+      th { padding:10px 12px; font-size:11px; text-transform:uppercase; color:#7c3aed; font-weight:600; letter-spacing:.04em; }
+      td { padding:10px 12px; font-size:12px; border-bottom:1px solid #f3f4f6; }
+      .total-row { background:#f5f3ff; }
+      .total-row td { font-weight:700; font-size:14px; color:#7c3aed; border:none; padding:12px; }
+      .footer { margin-top:32px; padding-top:14px; border-top:1px solid #e5e7eb; display:flex; justify-content:space-between; font-size:10px; color:#9ca3af; }
+      .thank-you { text-align:center; margin-top:20px; font-size:13px; color:#7c3aed; font-weight:600; }
+      @media print { body { padding:16px; } button { display:none !important; } }
+    </style>
+    </head><body>
+    <div class="header">
+      <div>
+        <div class="brand-icon">PS</div>
+        <div class="brand-name">ProductStore</div>
+        <div class="brand-sub">Management Platform</div>
+      </div>
+      <div>
+        <div class="invoice-title">INVOICE</div>
+        <div class="invoice-no">#${invoiceNo || ""}</div>
+        <div class="invoice-no" style="margin-top:6px">${date || ""}</div>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-box">
+        <div class="info-label">Bill To</div>
+        <div class="info-val">${customer?.name || "Walk-in Customer"}</div>
+        ${customer?.phone ? `<div class="info-sub">📞 ${customer.phone}</div>` : ""}
+        ${customer?.address ? `<div class="info-sub">📍 ${customer.address}</div>` : ""}
+      </div>
+      <div class="info-box">
+        <div class="info-label">Transaction Info</div>
+        <div class="info-val">Served by: ${employee || "—"}</div>
+        <div class="info-sub">Payment: ${paymentMethod || ""} (${paymentStatus.toUpperCase()})</div>
+        <div class="info-sub">Status: ${status.toUpperCase()}</div>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th style="text-align:left">Product</th>
+        <th style="text-align:center">Qty</th>
+        <th style="text-align:right">Unit Price</th>
+        <th style="text-align:right">Subtotal</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="3" style="text-align:right">TOTAL</td>
+          <td style="text-align:right">৳${(total || 0).toLocaleString()}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="thank-you">Thank you for your purchase! 🙏</div>
+    <div class="footer">
+      <span>ProductStore · TurfSlot Platform</span>
+      <span>Invoice #${invoiceNo || ""} · ${date || ""}</span>
+    </div>
+    </body></html>`);
+    doc.close();
+
+    iframe.contentWindow?.focus();
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      document.body.removeChild(iframe);
+    }, 300);
+  } catch (err) {
+    console.error("[printInvoice] Error rendering or printing invoice:", err);
+  }
 }
 
 export default function SalesPOS({ products }) {
@@ -172,37 +198,46 @@ export default function SalesPOS({ products }) {
     setSaving(true);
     const invoiceNo = `INV-${Date.now().toString().slice(-6)}`;
     const date = format(new Date(), "dd MMM yyyy, hh:mm a");
+    const invoiceData = { items: [...items], customer: { ...customer }, employee, paymentMethod, total, invoiceNo, date };
 
-    await apiClient.entities.Order.create({
-      customer_name: customer.name,
-      customer_phone: customer.phone,
-      items,
-      total_amount: total,
-      payment_method: paymentMethod,
-      payment_status: "paid",
-      status: "confirmed",
-      notes: `Served by: ${employee}`,
-    });
+    // 1. Trigger printing instantly so the print dialog appears without database network lag
+    // printInvoice(invoiceData);
+    setLastInvoice(invoiceData);
 
-    for (const item of items) {
-      const product = products.find((p) => p.id === item.product_id);
-      if (product) {
-        await apiClient.entities.Product.update(item.product_id, {
-          stock: Math.max(0, (product.stock || 0) - item.quantity),
-        });
+    try {
+      // 2. Perform DB updates in the background
+      await apiClient.entities.Order.create({
+        customer_name: customer.name,
+        customer_phone: customer.phone,
+        items,
+        total_amount: total,
+        payment_method: paymentMethod,
+        payment_status: "paid",
+        status: "confirmed",
+        notes: `Served by: ${employee}`,
+      });
+
+      for (const item of items) {
+        const product = products.find((p) => p.id === item.product_id);
+        if (product) {
+          await apiClient.entities.Product.update(item.product_id, {
+            stock: Math.max(0, (product.stock || 0) - item.quantity),
+          });
+        }
       }
+    } catch (err) {
+      console.error("[POS] Error saving order or updating stock:", err);
     }
 
-    const invoiceData = { items: [...items], customer: { ...customer }, employee, paymentMethod, total, invoiceNo, date };
-    setLastInvoice(invoiceData);
-    printInvoice(invoiceData);
-
-    setItems([]);
-    setCustomer({ name: "", phone: "", address: "" });
-    setPaymentMethod("cash");
-    setSaving(false);
-    queryClient.invalidateQueries({ queryKey: ["orders"] });
-    queryClient.invalidateQueries({ queryKey: ["products"] });
+    // 3. Delay clearing the cart layout to ensure focus has stabilized on the print preview
+    setTimeout(() => {
+      setItems([]);
+      setCustomer({ name: "", phone: "", address: "" });
+      setPaymentMethod("cash");
+      setSaving(false);
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    }, 1000);
   };
 
   return (
