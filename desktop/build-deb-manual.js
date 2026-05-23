@@ -38,6 +38,7 @@ try {
   const controlDir = join(debianDir, "DEBIAN");
 
   mkdirSync(controlDir, { recursive: true });
+  chmodSync(controlDir, 0o755);
 
   // Create control file
   const controlContent = `Package: turfslot-desktop
