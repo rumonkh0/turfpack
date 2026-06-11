@@ -126,7 +126,14 @@ export default function BookingFormDialog({
 
   useEffect(() => {
     if (open) {
-      setForm(booking ? { ...defaults, ...booking } : defaults);
+      if (booking) {
+        const existingPaid = Number(booking.paid_amount || 0);
+        const existingTotal = Number(booking.total_price || 0);
+        const due = Math.max(0, existingTotal - existingPaid);
+        setForm({ ...defaults, ...booking, paid_amount: due, txn_id: "" });
+      } else {
+        setForm(defaults);
+      }
     }
   }, [booking, open, defaults]);
 
@@ -174,6 +181,12 @@ export default function BookingFormDialog({
     [selectedTurf, form.date, form.start_hour, form.end_hour],
   );
 
+  // Due is remaining amount for existing booking (for new booking due === totalPrice)
+  const dueAmount = useMemo(() => {
+    const existingPaid = Number(booking?.paid_amount || 0);
+    return Math.max(0, totalPrice - existingPaid);
+  }, [totalPrice, booking]);
+
   const invalidTimeRange = Number(form.end_hour) <= Number(form.start_hour);
   const outsideTurfHours = selectedTurf
     ? Number(form.start_hour) < Number(selectedTurf.opening_hour || 6) ||
@@ -202,60 +215,68 @@ export default function BookingFormDialog({
         form.end_hour,
       );
 
-      // Build payment history for partial/paid status
+      // Build payment history and payload
       let paymentHistory = booking?.payment_history || [];
-      if (form.payment_status === "partial" && form.paid_amount > 0) {
-        // Check if this is a new payment (editing existing partial)
-        if (isEdit && form.paid_amount !== booking?.paid_amount) {
-          paymentHistory = [
-            ...(booking?.payment_history || []),
-            {
-              amount: form.paid_amount - (booking?.paid_amount || 0),
-              date: new Date(),
-              method: form.payment_method,
-              txn_id: form.txn_id || "",
-              notes: form.notes || "",
-            },
-          ];
-        } else if (!isEdit) {
-          // New booking with partial payment
-          paymentHistory = [
-            {
-              amount: form.paid_amount,
-              date: new Date(),
-              method: form.payment_method,
-              txn_id: form.txn_id || "",
-              notes: form.notes || "",
-            },
-          ];
-        }
-      } else if (form.payment_status === "paid" && form.paid_amount > 0) {
-        // Mark as fully paid
-        paymentHistory = [
-          ...(booking?.payment_history || []),
-          {
-            amount: calculatedTotal - (booking?.paid_amount || 0),
-            date: new Date(),
-            method: form.payment_method,
-            txn_id: form.txn_id || "",
-            notes: form.notes || "",
-          },
-        ];
-      }
-
       const data = {
         ...form,
         turf_name: selectedTurf?.name || "",
         total_price: calculatedTotal,
         duration_hours: form.end_hour - form.start_hour,
-        paid_amount: form.paid_amount || 0,
-        payment_history: paymentHistory,
       };
 
       if (isEdit) {
+        // For edits, treat paid_amount as an incremental payment to deduct from due.
+        const existingPaid = Number(booking?.paid_amount || 0);
+        const due = Math.max(0, calculatedTotal - existingPaid);
+        const entered = Number(form.paid_amount || 0);
+
+        if (entered > 0) {
+          const increment = Math.min(entered, due);
+          paymentHistory = [
+            ...(booking?.payment_history || []),
+            {
+              amount: increment,
+              date: new Date(),
+              method: form.payment_method,
+              txn_id: form.txn_id || "",
+              notes: form.notes || "",
+            },
+          ];
+          data.paid_amount = existingPaid + increment;
+          data.payment_history = paymentHistory;
+          data.payment_status =
+            data.paid_amount >= calculatedTotal ? "paid" : "partial";
+        } else {
+          // entered === 0 -> preserve existing payment state (do not overwrite paid_amount/payment_history/status/txn)
+          delete data.paid_amount;
+          delete data.payment_history;
+          delete data.payment_status;
+          delete data.payment_method;
+          delete data.txn_id;
+        }
+
         await apiClient.entities.Booking.update(booking.id, data);
         toast.success("Booking updated successfully");
       } else {
+        // New booking creation
+        if (["paid", "partial"].includes(form.payment_status)) {
+          const paymentAmount =
+            form.payment_status === "partial"
+              ? Number(form.paid_amount || 0)
+              : Number(calculatedTotal || 0);
+          paymentHistory = [
+            {
+              amount: paymentAmount,
+              date: new Date(),
+              method: form.payment_method,
+              txn_id: form.txn_id || "",
+              notes: form.notes || "",
+            },
+          ];
+          data.paid_amount = paymentAmount;
+          data.payment_history = paymentHistory;
+        }
+
         await apiClient.entities.Booking.create(data);
         toast.success("Booking created successfully");
       }
@@ -541,22 +562,20 @@ export default function BookingFormDialog({
               </div>
               <div>
                 <Label htmlFor="paid-amount" className="text-amber-900">
-                  Paid Amount (৳)
+                  Paid Amount (৳) — amount to deduct from due
                 </Label>
                 <Input
                   id="paid-amount"
                   type="number"
                   value={form.paid_amount || 0}
                   onChange={(e) => {
-                    const amount = Math.min(
-                      Number(e.target.value) || 0,
-                      totalPrice || 0,
-                    );
+                    const raw = Number(e.target.value) || 0;
+                    const amount = Math.min(raw, dueAmount || 0);
                     set("paid_amount", amount);
                   }}
-                  max={totalPrice || 0}
+                  max={dueAmount || 0}
                   min={0}
-                  placeholder="Enter amount paid"
+                  placeholder={`Max ৳${dueAmount}`}
                   className="font-semibold border-amber-300 focus:border-amber-400"
                 />
               </div>
@@ -564,7 +583,10 @@ export default function BookingFormDialog({
                 <div className="text-sm text-amber-900 font-semibold">
                   Remaining Balance:{" "}
                   <span className="text-lg">
-                    ৳{(totalPrice || 0) - (form.paid_amount || 0)}
+                    ৳
+                    {(totalPrice || 0) -
+                      (booking?.paid_amount || 0) -
+                      (form.paid_amount || 0)}
                   </span>
                 </div>
               </div>
