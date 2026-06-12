@@ -245,7 +245,7 @@ export default function BookingFormDialog({
           data.paid_amount = existingPaid + increment;
           data.payment_history = paymentHistory;
           data.payment_status =
-            data.paid_amount >= calculatedTotal ? "paid" : "partial";
+            data.paid_amount >= calculatedTotal ? "paid" : "advanced";
         } else {
           // entered === 0 -> preserve existing payment state (do not overwrite paid_amount/payment_history/status/txn)
           delete data.paid_amount;
@@ -259,9 +259,9 @@ export default function BookingFormDialog({
         toast.success("Booking updated successfully");
       } else {
         // New booking creation
-        if (["paid", "partial"].includes(form.payment_status)) {
+        if (["paid", "advanced"].includes(form.payment_status)) {
           const paymentAmount =
-            form.payment_status === "partial"
+            form.payment_status === "advanced"
               ? Number(form.paid_amount || 0)
               : Number(calculatedTotal || 0);
           paymentHistory = [
@@ -506,7 +506,7 @@ export default function BookingFormDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["paid", "unpaid", "partial", "refunded"].map((s) => (
+                  {["paid", "unpaid", "advanced", "refunded"].map((s) => (
                     <SelectItem key={s} value={s}>
                       {s}
                     </SelectItem>
@@ -516,7 +516,7 @@ export default function BookingFormDialog({
             </div>
           </div>
 
-          {["paid", "partial"].includes(form.payment_status) && (
+          {["paid", "advanced"].includes(form.payment_status) && (
             <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-1">
               <div>
                 <Label>Payment Method</Label>
@@ -549,7 +549,7 @@ export default function BookingFormDialog({
             </div>
           )}
 
-          {form.payment_status === "partial" && (
+          {form.payment_status === "advanced" && (
             <div className="grid grid-cols-2 gap-4 p-3 bg-amber-50 border border-amber-200 rounded-lg animate-in fade-in slide-in-from-top-1">
               <div>
                 <Label className="text-amber-900">Total Amount</Label>
