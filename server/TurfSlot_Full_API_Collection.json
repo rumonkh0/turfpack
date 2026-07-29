@@ -1,0 +1,934 @@
+{
+  "info": {
+    "name": "TurfSlot — Complete API Collection",
+    "description": "Full API test suite for TurfSlot backend.\n\n## Setup\n1. Set `base_url` variable (default: http://localhost:5000)\n2. Run \"Admin Login\" first — it auto-sets the `token` variable\n3. For partner tests, run \"Partner Login\" after creating a partner\n\n## Folder Order\nFolders are numbered for recommended test flow:\n01 Auth → 02 Users → 03 Turfs → 04 Bookings → 05 Payments → 06 Products → 07 Orders → 08 Tournaments → 09 Accounts → 10 Expenses → 11 Incomes → 12 Partners → 13 Ledger → 14 Reports → 15 Upload → 16 License",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:5000", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "partner_token", "value": "", "type": "string" },
+    { "key": "turf_id", "value": "", "type": "string" },
+    { "key": "booking_id", "value": "", "type": "string" },
+    { "key": "product_id", "value": "", "type": "string" },
+    { "key": "order_id", "value": "", "type": "string" },
+    { "key": "tournament_id", "value": "", "type": "string" },
+    { "key": "user_id", "value": "", "type": "string" },
+    { "key": "partner_id", "value": "", "type": "string" },
+    { "key": "partner2_id", "value": "", "type": "string" },
+    { "key": "expense_id", "value": "", "type": "string" },
+    { "key": "income_id", "value": "", "type": "string" },
+    { "key": "account_id", "value": "", "type": "string" },
+    { "key": "journal_entry_id", "value": "", "type": "string" },
+    { "key": "payment_id", "value": "", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "01 — Auth",
+      "description": "Authentication endpoints. Run Admin Login first to populate the token.",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Test User\",\n  \"email\": \"testuser@mail.com\",\n  \"password\": \"password123\",\n  \"role\": \"staff\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.token) pm.collectionVariables.set('token', res.token);"] }
+          }]
+        },
+        {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@mail.com\",\n  \"password\": \"00000000\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const res = pm.response.json();",
+              "if (res.token) {",
+              "  pm.collectionVariables.set('token', res.token);",
+              "  pm.test('Login successful', () => pm.expect(res.success).to.be.true);",
+              "}"
+            ] }
+          }]
+        },
+        {
+          "name": "Partner Login",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"karim@partner.com\",\n  \"password\": \"partner123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "const res = pm.response.json();",
+              "if (res.token) pm.collectionVariables.set('partner_token', res.token);"
+            ] }
+          }]
+        },
+        {
+          "name": "Desktop Auto Login",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/auth/desktop-auto-login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" }
+          }
+        },
+        {
+          "name": "Get Current User (Me)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/auth/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 — Users (Admin)",
+      "description": "User management. All endpoints require admin role.",
+      "item": [
+        {
+          "name": "List All Users",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/users?sort=-createdAt&limit=50", "host": ["{{base_url}}"], "path": ["api", "users"], "query": [{ "key": "sort", "value": "-createdAt" }, { "key": "limit", "value": "50" }] }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/users",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Staff Member\",\n  \"email\": \"staff@mail.com\",\n  \"password\": \"password123\",\n  \"role\": \"staff\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('user_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/users/{{user_id}}"
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/users/{{user_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated Staff Name\",\n  \"status\": \"active\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/users/{{user_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 — Turfs",
+      "description": "Turf (sports ground) management.",
+      "item": [
+        {
+          "name": "List All Turfs",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/turfs?sort=name&limit=50", "host": ["{{base_url}}"], "path": ["api", "turfs"], "query": [{ "key": "sort", "value": "name" }, { "key": "limit", "value": "50" }] }
+          }
+        },
+        {
+          "name": "Create Turf",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/turfs",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Football Field\",\n  \"type\": \"football\",\n  \"size\": \"11v11\",\n  \"location\": \"Block A, Dhaka\",\n  \"description\": \"Full-size football ground with floodlights\",\n  \"base_price\": 2000,\n  \"peak_price\": 3000,\n  \"night_price\": 2500,\n  \"opening_hour\": 6,\n  \"closing_hour\": 23,\n  \"peak_hours_start\": 17,\n  \"peak_hours_end\": 21,\n  \"weekend_multiplier\": 1.2,\n  \"amenities\": [\"floodlight\", \"changing_room\", \"parking\"]\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('turf_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Get Turf by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/turfs/{{turf_id}}"
+          }
+        },
+        {
+          "name": "Update Turf",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/turfs/{{turf_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"base_price\": 2500,\n  \"description\": \"Updated description\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Turf",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/turfs/{{turf_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 — Bookings",
+      "description": "Booking management with partial payment support.\nCreating a booking auto-posts to the ledger.",
+      "item": [
+        {
+          "name": "List All Bookings",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/bookings?sort=-date&limit=50", "host": ["{{base_url}}"], "path": ["api", "bookings"], "query": [{ "key": "sort", "value": "-date" }, { "key": "limit", "value": "50" }] }
+          }
+        },
+        {
+          "name": "Create Booking — Paid in Full",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"turf_id\": \"{{turf_id}}\",\n  \"customer_name\": \"Rafiq Ahmed\",\n  \"customer_phone\": \"01700000001\",\n  \"customer_email\": \"rafiq@mail.com\",\n  \"date\": \"2026-07-25\",\n  \"start_hour\": 10,\n  \"end_hour\": 11,\n  \"duration_hours\": 1,\n  \"total_price\": 2000,\n  \"payment_status\": \"paid\",\n  \"payment_method\": \"bkash\",\n  \"txn_id\": \"TXN001\",\n  \"notes\": \"Regular customer\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('booking_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Create Booking — Partial Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"turf_id\": \"{{turf_id}}\",\n  \"customer_name\": \"Jamal Hossain\",\n  \"customer_phone\": \"01700000002\",\n  \"date\": \"2026-07-25\",\n  \"start_hour\": 14,\n  \"end_hour\": 15,\n  \"duration_hours\": 1,\n  \"total_price\": 3000,\n  \"paid_amount\": 1000,\n  \"payment_status\": \"partial\",\n  \"payment_method\": \"nagad\",\n  \"payment_history\": [\n    { \"amount\": 1000, \"date\": \"2026-07-25\", \"method\": \"nagad\", \"txn_id\": \"NAG001\", \"notes\": \"Advance\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Booking — Unpaid",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"turf_id\": \"{{turf_id}}\",\n  \"customer_name\": \"Kamal Uddin\",\n  \"customer_phone\": \"01700000003\",\n  \"date\": \"2026-07-26\",\n  \"start_hour\": 18,\n  \"end_hour\": 19,\n  \"duration_hours\": 1,\n  \"total_price\": 3000,\n  \"payment_status\": \"unpaid\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Booking by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/bookings/{{booking_id}}"
+          }
+        },
+        {
+          "name": "Update Booking — Add Installment",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/bookings/{{booking_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paid_amount\": 2000,\n  \"payment_status\": \"partial\",\n  \"payment_history\": [\n    { \"amount\": 1000, \"date\": \"2026-07-25\", \"method\": \"nagad\", \"txn_id\": \"NAG001\", \"notes\": \"Advance\" },\n    { \"amount\": 1000, \"date\": \"2026-07-26\", \"method\": \"cash\", \"txn_id\": \"\", \"notes\": \"Second installment\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Booking — Cancel (unpaid)",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/bookings/{{booking_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Booking — Refund",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/bookings/{{booking_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_status\": \"refunded\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Booking",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/bookings/{{booking_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 — Payments",
+      "description": "Payment records (auto-created with bookings, or standalone).",
+      "item": [
+        {
+          "name": "List All Payments",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/payments?sort=-createdAt&limit=50", "host": ["{{base_url}}"], "path": ["api", "payments"], "query": [{ "key": "sort", "value": "-createdAt" }, { "key": "limit", "value": "50" }] }
+          }
+        },
+        {
+          "name": "Create Payment",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/payments",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"booking_id\": \"{{booking_id}}\",\n  \"amount\": 2000,\n  \"method\": \"bkash\",\n  \"transaction_id\": \"TXN_MANUAL_001\",\n  \"customer_name\": \"Rafiq Ahmed\",\n  \"customer_phone\": \"01700000001\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 — Products",
+      "description": "Product/inventory management (POS).",
+      "item": [
+        {
+          "name": "List All Products",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/products?sort=name&limit=50", "host": ["{{base_url}}"], "path": ["api", "products"], "query": [{ "key": "sort", "value": "name" }, { "key": "limit", "value": "50" }] }
+          }
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/products",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mineral Water\",\n  \"category\": \"beverage\",\n  \"price\": 25,\n  \"cost_price\": 12,\n  \"stock\": 100,\n  \"unit\": \"bottle\",\n  \"sku\": \"BEV-001\",\n  \"description\": \"500ml mineral water\",\n  \"low_stock_alert\": 10\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('product_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/products/{{product_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 30,\n  \"stock\": 150\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/products/{{product_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 — Orders",
+      "description": "POS orders. Creating an order auto-posts to ledger and decrements stock.",
+      "item": [
+        {
+          "name": "List All Orders",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/orders?sort=-createdAt&limit=50", "host": ["{{base_url}}"], "path": ["api", "orders"], "query": [{ "key": "sort", "value": "-createdAt" }, { "key": "limit", "value": "50" }] }
+          }
+        },
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/orders",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_name\": \"Walk-in Customer\",\n  \"customer_phone\": \"01700000005\",\n  \"items\": [\n    { \"product_id\": \"{{product_id}}\", \"name\": \"Mineral Water\", \"quantity\": 3, \"price\": 25 }\n  ],\n  \"total_amount\": 75,\n  \"payment_method\": \"cash\",\n  \"payment_status\": \"paid\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('order_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Update Order — Cancel",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/orders/{{order_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 — Tournaments",
+      "description": "Tournament management.",
+      "item": [
+        {
+          "name": "List All Tournaments",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/tournaments?sort=-start_date&limit=50", "host": ["{{base_url}}"], "path": ["api", "tournaments"], "query": [{ "key": "sort", "value": "-start_date" }, { "key": "limit", "value": "50" }] }
+          }
+        },
+        {
+          "name": "Create Tournament",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/tournaments",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Weekend Cup 2026\",\n  \"turf_id\": \"{{turf_id}}\",\n  \"turf_name\": \"Main Football Field\",\n  \"start_date\": \"2026-08-01\",\n  \"end_date\": \"2026-08-03\",\n  \"max_teams\": 8,\n  \"entry_fee\": 1500,\n  \"prize_pool\": 10000,\n  \"format\": \"knockout\",\n  \"description\": \"Weekend knockout tournament\",\n  \"rules\": \"Standard 7v7 rules\",\n  \"teams\": []\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('tournament_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Update Tournament",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/tournaments/{{tournament_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ongoing\",\n  \"teams\": [\n    { \"name\": \"Team Alpha\", \"captain\": \"Rafiq\" },\n    { \"name\": \"Team Beta\", \"captain\": \"Jamal\" }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 — Accounts (Chart of Accounts)",
+      "description": "Admin manages the Chart of Accounts. 23 system accounts are seeded; admin can add custom ones.",
+      "item": [
+        {
+          "name": "List All Accounts",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/accounts?sort=code&limit=100", "host": ["{{base_url}}"], "path": ["api", "accounts"], "query": [{ "key": "sort", "value": "code" }, { "key": "limit", "value": "100" }] }
+          }
+        },
+        {
+          "name": "List Accounts — Filter by Type",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/accounts?type=expense&status=active", "host": ["{{base_url}}"], "path": ["api", "accounts"], "query": [{ "key": "type", "value": "expense" }, { "key": "status", "value": "active" }] }
+          }
+        },
+        {
+          "name": "Create Custom Account",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/accounts",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"6007\",\n  \"name\": \"Transport\",\n  \"type\": \"expense\",\n  \"normal_side\": \"debit\",\n  \"description\": \"Travel and transport costs\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('account_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Update Custom Account",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/accounts/{{account_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Transport & Travel\",\n  \"description\": \"Updated description\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 — Expenses",
+      "description": "Manual expense recording. Each POST auto-creates a balanced journal entry.",
+      "item": [
+        {
+          "name": "List All Expenses",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/expenses?sort=-entry_date&limit=50", "host": ["{{base_url}}"], "path": ["api", "expenses"], "query": [{ "key": "sort", "value": "-entry_date" }, { "key": "limit", "value": "50" }] }
+          }
+        },
+        {
+          "name": "List Expenses — Filter by Date & Category",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/expenses?from=2026-07-01&to=2026-07-31&account_code=6002", "host": ["{{base_url}}"], "path": ["api", "expenses"], "query": [{ "key": "from", "value": "2026-07-01" }, { "key": "to", "value": "2026-07-31" }, { "key": "account_code", "value": "6002" }] }
+          }
+        },
+        {
+          "name": "Create Expense — Electricity",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/expenses",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"July electricity bill\",\n  \"amount\": 5000,\n  \"account_code\": \"6002\",\n  \"payment_method\": \"bkash\",\n  \"entry_date\": \"2026-07-25\",\n  \"notes\": \"Meter #4421\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('expense_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Create Expense — Rent",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/expenses",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"July venue rent\",\n  \"amount\": 25000,\n  \"account_code\": \"6001\",\n  \"payment_method\": \"cash\",\n  \"entry_date\": \"2026-07-01\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Expense by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/expenses/{{expense_id}}"
+          }
+        },
+        {
+          "name": "Delete Expense (posts reversal)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/expenses/{{expense_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 — Incomes",
+      "description": "Manual income recording (sponsorships, misc revenue). Each POST auto-creates a journal entry.",
+      "item": [
+        {
+          "name": "List All Incomes",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/incomes?sort=-entry_date&limit=50", "host": ["{{base_url}}"], "path": ["api", "incomes"], "query": [{ "key": "sort", "value": "-entry_date" }, { "key": "limit", "value": "50" }] }
+          }
+        },
+        {
+          "name": "List Incomes — Filter by Date",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/incomes?from=2026-07-01&to=2026-07-31", "host": ["{{base_url}}"], "path": ["api", "incomes"], "query": [{ "key": "from", "value": "2026-07-01" }, { "key": "to", "value": "2026-07-31" }] }
+          }
+        },
+        {
+          "name": "Create Income — Sponsorship",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/incomes",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Tournament sponsorship from XYZ Corp\",\n  \"amount\": 15000,\n  \"account_code\": \"4099\",\n  \"payment_method\": \"bkash\",\n  \"entry_date\": \"2026-07-20\",\n  \"notes\": \"Sponsor contract #SP-2026-07\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('income_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Get Income by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/incomes/{{income_id}}"
+          }
+        },
+        {
+          "name": "Delete Income (posts reversal)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/incomes/{{income_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 — Partners",
+      "description": "Partner management, share reallocation, and payouts.\n\nFlow: Create partner → auto 100% if first → create more → reallocate → payout.",
+      "item": [
+        {
+          "name": "List All Partners",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/partners"
+          }
+        },
+        {
+          "name": "Create Partner (1st = auto 100%)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/partners",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Karim Ahmed\",\n  \"email\": \"karim@partner.com\",\n  \"password\": \"partner123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('partner_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Create Partner (2nd — needs reallocate after)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/partners",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Rahim Khan\",\n  \"email\": \"rahim@partner.com\",\n  \"password\": \"partner123\"\n}"
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?._id) pm.collectionVariables.set('partner2_id', res.data._id);"] }
+          }]
+        },
+        {
+          "name": "Get Partner by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/partners/{{partner_id}}"
+          }
+        },
+        {
+          "name": "Update Partner",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/api/partners/{{partner_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Karim Ahmed (Senior)\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Reallocate Shares (must sum to 10000 bp)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/partners/reallocate",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shares\": [\n    { \"user_id\": \"{{partner_id}}\", \"share_bp\": 6000 },\n    { \"user_id\": \"{{partner2_id}}\", \"share_bp\": 4000 }\n  ],\n  \"reason\": \"Split 60/40 after onboarding Rahim\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Share Reallocation History",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/partners/shares/history?limit=20", "host": ["{{base_url}}"], "path": ["api", "partners", "shares", "history"], "query": [{ "key": "limit", "value": "20" }] }
+          }
+        },
+        {
+          "name": "List All Payouts",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/partners/payouts?sort=-created_at&limit=50", "host": ["{{base_url}}"], "path": ["api", "partners", "payouts"], "query": [{ "key": "sort", "value": "-created_at" }, { "key": "limit", "value": "50" }] }
+          }
+        },
+        {
+          "name": "List Payouts — Filter by Partner",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/partners/payouts?user_id={{partner_id}}&from=2026-07-01&to=2026-07-31", "host": ["{{base_url}}"], "path": ["api", "partners", "payouts"], "query": [{ "key": "user_id", "value": "{{partner_id}}" }, { "key": "from", "value": "2026-07-01" }, { "key": "to", "value": "2026-07-31" }] }
+          }
+        },
+        {
+          "name": "Create Payout",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/partners/payouts",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{partner_id}}\",\n  \"amount\": 50000,\n  \"payment_method\": \"bkash\",\n  \"notes\": \"July 2026 share payout\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 — Ledger (Journal Entries)",
+      "description": "Read-only view of all double-entry journal entries. Admin only.",
+      "item": [
+        {
+          "name": "List All Journal Entries",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/ledger?sort=-entry_date&limit=50", "host": ["{{base_url}}"], "path": ["api", "ledger"], "query": [{ "key": "sort", "value": "-entry_date" }, { "key": "limit", "value": "50" }] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["const res = pm.response.json();", "if (res.data?.length > 0) pm.collectionVariables.set('journal_entry_id', res.data[0]._id);"] }
+          }]
+        },
+        {
+          "name": "List Journal Entries — Filter by Date",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/ledger?from=2026-07-01&to=2026-07-31", "host": ["{{base_url}}"], "path": ["api", "ledger"], "query": [{ "key": "from", "value": "2026-07-01" }, { "key": "to", "value": "2026-07-31" }] }
+          }
+        },
+        {
+          "name": "List Journal Entries — Filter by Type",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/ledger?reference_type=booking", "host": ["{{base_url}}"], "path": ["api", "ledger"], "query": [{ "key": "reference_type", "value": "booking" }] }
+          }
+        },
+        {
+          "name": "Get Journal Entry by ID (with lines)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/ledger/{{journal_entry_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 — Reports",
+      "description": "Financial reports. Admin sees everything; partner sees P&L + own share only.\n\nPeriod params: ?from=2026-07-01&to=2026-07-31 OR ?period=daily|weekly|monthly|yearly\n\nAll amounts are in poisha (integer). Divide by 100 for taka.",
+      "item": [
+        {
+          "name": "Profit & Loss — Monthly",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/profit-loss?period=monthly", "host": ["{{base_url}}"], "path": ["api", "reports", "profit-loss"], "query": [{ "key": "period", "value": "monthly" }] }
+          }
+        },
+        {
+          "name": "Profit & Loss — Custom Range",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/profit-loss?from=2026-07-01&to=2026-07-31", "host": ["{{base_url}}"], "path": ["api", "reports", "profit-loss"], "query": [{ "key": "from", "value": "2026-07-01" }, { "key": "to", "value": "2026-07-31" }] }
+          }
+        },
+        {
+          "name": "Profit & Loss — Yearly",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/profit-loss?period=yearly", "host": ["{{base_url}}"], "path": ["api", "reports", "profit-loss"], "query": [{ "key": "period", "value": "yearly" }] }
+          }
+        },
+        {
+          "name": "Cash Position",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/cash-position?as_of=2026-07-31", "host": ["{{base_url}}"], "path": ["api", "reports", "cash-position"], "query": [{ "key": "as_of", "value": "2026-07-31" }] }
+          }
+        },
+        {
+          "name": "Cash Position — Today",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/reports/cash-position"
+          }
+        },
+        {
+          "name": "Accounts Receivable",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/receivables?as_of=2026-07-31", "host": ["{{base_url}}"], "path": ["api", "reports", "receivables"], "query": [{ "key": "as_of", "value": "2026-07-31" }] }
+          }
+        },
+        {
+          "name": "Partner Shares — Monthly (Admin view)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/partner-shares?period=monthly", "host": ["{{base_url}}"], "path": ["api", "reports", "partner-shares"], "query": [{ "key": "period", "value": "monthly" }] }
+          }
+        },
+        {
+          "name": "Partner Shares — Custom Range",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/partner-shares?from=2026-01-01&to=2026-12-31", "host": ["{{base_url}}"], "path": ["api", "reports", "partner-shares"], "query": [{ "key": "from", "value": "2026-01-01" }, { "key": "to", "value": "2026-12-31" }] }
+          }
+        },
+        {
+          "name": "Partner Shares — Partner View (use partner_token)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/partner-shares?period=monthly", "host": ["{{base_url}}"], "path": ["api", "reports", "partner-shares"], "query": [{ "key": "period", "value": "monthly" }] },
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{partner_token}}", "type": "string" }]
+            }
+          }
+        },
+        {
+          "name": "Revenue Breakdown — Monthly",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/revenue-breakdown?period=monthly", "host": ["{{base_url}}"], "path": ["api", "reports", "revenue-breakdown"], "query": [{ "key": "period", "value": "monthly" }] }
+          }
+        },
+        {
+          "name": "Expense Breakdown — Monthly",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/expense-breakdown?period=monthly", "host": ["{{base_url}}"], "path": ["api", "reports", "expense-breakdown"], "query": [{ "key": "period", "value": "monthly" }] }
+          }
+        },
+        {
+          "name": "Dashboard — Admin (monthly)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/dashboard?period=monthly", "host": ["{{base_url}}"], "path": ["api", "reports", "dashboard"], "query": [{ "key": "period", "value": "monthly" }] }
+          }
+        },
+        {
+          "name": "Dashboard — Partner View (use partner_token)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/reports/dashboard?period=monthly", "host": ["{{base_url}}"], "path": ["api", "reports", "dashboard"], "query": [{ "key": "period", "value": "monthly" }] },
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{partner_token}}", "type": "string" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 — Upload",
+      "description": "File upload (images). Requires auth.",
+      "item": [
+        {
+          "name": "Upload File",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/upload",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 — License (Desktop Only)",
+      "description": "Desktop license management. Only available when SQLITE_PATH is set.",
+      "item": [
+        {
+          "name": "Get License Status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/license/status"
+          }
+        },
+        {
+          "name": "Activate License",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/license/activate",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"license_key\": \"your-license-key-here\"\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

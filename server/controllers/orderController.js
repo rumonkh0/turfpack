@@ -1,6 +1,7 @@
 import asyncHandler from "../middleware/async.js";
 import ErrorResponse from "../utils/errorResponse.js";
 import { listRecords, createRecord, incrementColumn, findById, updateById } from "../db/sqlite.js";
+import { postOrderCreated, postOrderCancelled } from "../services/ledgerPostingService.js";
 
 // @desc    Get all orders
 // @route   GET /api/orders
@@ -33,6 +34,22 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     }
   }
 
+  // Post to ledger
+  try {
+    let costTotal = 0;
+    if (req.body.items && Array.isArray(req.body.items)) {
+      for (const item of req.body.items) {
+        if (item.product_id) {
+          const product = findById("products", item.product_id);
+          costTotal += (product?.cost_price || 0) * (Number(item.quantity) || 0);
+        }
+      }
+    }
+    postOrderCreated(order, costTotal, req.user?._id || null);
+  } catch (err) {
+    console.error("⚠️ Ledger posting failed for order creation:", err.message);
+  }
+
   res.status(201).json({ success: true, data: order });
 });
 
@@ -48,7 +65,25 @@ export const updateOrder = asyncHandler(async (req, res, next) => {
     );
   }
 
+  const oldStatus = order.status;
   order = updateById("orders", req.params.id, req.body);
+
+  // Ledger hook: if cancelled
+  if (req.body.status === "cancelled" && oldStatus !== "cancelled") {
+    try {
+      let costTotal = 0;
+      const items = order.items || [];
+      for (const item of items) {
+        if (item.product_id) {
+          const product = findById("products", item.product_id);
+          costTotal += (product?.cost_price || 0) * (Number(item.quantity) || 0);
+        }
+      }
+      postOrderCancelled(order, costTotal, req.user?._id || null);
+    } catch (err) {
+      console.error("⚠️ Ledger posting failed for order cancellation:", err.message);
+    }
+  }
 
   res.status(200).json({ success: true, data: order });
 });

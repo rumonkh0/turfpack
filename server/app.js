@@ -18,6 +18,12 @@ import orderRoutes from "./routes/orderRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import licenseRoutes from "./routes/licenseRoutes.js";
+import accountRoutes from "./routes/accountRoutes.js";
+import expenseRoutes from "./routes/expenseRoutes.js";
+import incomeRoutes from "./routes/incomeRoutes.js";
+import partnerRoutes from "./routes/partnerRoutes.js";
+import ledgerRoutes from "./routes/ledgerRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 import errorHandler from "./middleware/error.js";
 
 const app = express();
@@ -108,6 +114,12 @@ app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/accounts", accountRoutes);
+app.use("/api/expenses", expenseRoutes);
+app.use("/api/incomes", incomeRoutes);
+app.use("/api/partners", partnerRoutes);
+app.use("/api/ledger", ledgerRoutes);
+app.use("/api/reports", reportRoutes);
 
 // License routes (desktop mode only)
 if (process.env.SQLITE_PATH) {

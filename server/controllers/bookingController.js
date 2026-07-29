@@ -8,6 +8,12 @@ import {
   updateById,
   deleteById,
 } from "../db/sqlite.js";
+import {
+  postBookingCreated,
+  postBookingInstallment,
+  postBookingCancelled,
+  postBookingRefund,
+} from "../services/ledgerPostingService.js";
 
 // @desc    Get all bookings
 // @route   GET /api/bookings
@@ -90,6 +96,13 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     });
   }
 
+  // Post to ledger
+  try {
+    postBookingCreated(booking, req.user?._id || null);
+  } catch (err) {
+    console.error("⚠️ Ledger posting failed for booking creation:", err.message);
+  }
+
   res.status(201).json({ success: true, data: booking });
 });
 
@@ -105,7 +118,33 @@ export const updateBooking = asyncHandler(async (req, res, next) => {
     );
   }
 
+  const oldStatus = booking.status;
+  const oldPaymentStatus = booking.payment_status;
+  const oldPaymentHistoryLength = (booking.payment_history || []).length;
+
   booking = updateById("bookings", req.params.id, req.body);
+
+  // Ledger hooks
+  const userId = req.user?._id || null;
+  try {
+    // Cancellation of unpaid booking
+    if (req.body.status === "cancelled" && oldStatus !== "cancelled" && oldPaymentStatus === "unpaid") {
+      postBookingCancelled(booking, userId);
+    }
+    // Refund
+    if (req.body.payment_status === "refunded" && oldPaymentStatus !== "refunded") {
+      postBookingRefund(booking, userId);
+    }
+    // Installment payment added
+    const newHistory = booking.payment_history || [];
+    if (newHistory.length > oldPaymentHistoryLength) {
+      for (let i = oldPaymentHistoryLength; i < newHistory.length; i++) {
+        postBookingInstallment(booking, newHistory[i], i, userId);
+      }
+    }
+  } catch (err) {
+    console.error("⚠️ Ledger posting failed for booking update:", err.message);
+  }
 
   res.status(200).json({ success: true, data: booking });
 });

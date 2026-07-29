@@ -245,6 +245,125 @@ const TABLE_CONFIG = {
       "created_at",
     ],
   },
+  accounts: {
+    columns: [
+      "code",
+      "name",
+      "type",
+      "normal_side",
+      "description",
+      "is_system",
+      "status",
+    ],
+    jsonColumns: [],
+    defaults: { is_system: 1, status: "active" },
+    allowedSort: ["id", "code", "name", "type", "status", "created_at"],
+  },
+  journal_entries: {
+    columns: [
+      "entry_date",
+      "description",
+      "reference_type",
+      "reference_id",
+      "posting_event",
+      "created_by",
+    ],
+    jsonColumns: [],
+    defaults: {},
+    allowedSort: [
+      "id",
+      "entry_date",
+      "reference_type",
+      "posting_event",
+      "created_at",
+    ],
+  },
+  journal_lines: {
+    columns: [
+      "journal_entry_id",
+      "account_code",
+      "debit",
+      "credit",
+      "description",
+    ],
+    jsonColumns: [],
+    defaults: { debit: 0, credit: 0 },
+    allowedSort: ["id", "journal_entry_id", "account_code", "created_at"],
+  },
+  profit_share_ratios: {
+    columns: [
+      "user_id",
+      "share_bp",
+      "effective_from",
+      "effective_to",
+      "version",
+    ],
+    jsonColumns: [],
+    defaults: {},
+    allowedSort: [
+      "id",
+      "user_id",
+      "share_bp",
+      "effective_from",
+      "version",
+      "created_at",
+    ],
+  },
+  profit_share_change_log: {
+    columns: [
+      "version",
+      "changed_by",
+      "reason",
+      "snapshot",
+    ],
+    jsonColumns: ["snapshot"],
+    defaults: {},
+    allowedSort: ["id", "version", "created_at"],
+  },
+  expenses: {
+    columns: [
+      "description",
+      "amount",
+      "account_code",
+      "payment_method",
+      "payment_status",
+      "entry_date",
+      "notes",
+      "created_by",
+    ],
+    jsonColumns: [],
+    defaults: { account_code: "6099", payment_method: "cash", payment_status: "paid" },
+    allowedSort: [
+      "id",
+      "amount",
+      "account_code",
+      "payment_method",
+      "entry_date",
+      "created_at",
+    ],
+  },
+  incomes: {
+    columns: [
+      "description",
+      "amount",
+      "account_code",
+      "payment_method",
+      "payment_status",
+      "entry_date",
+      "notes",
+      "created_by",
+    ],
+    jsonColumns: [],
+    defaults: { account_code: "4099", payment_method: "cash", payment_status: "paid" },
+    allowedSort: [
+      "id",
+      "amount",
+      "account_code",
+      "payment_method",
+      "entry_date",
+      "created_at",
+    ],
+  },
 };
 
 const mapSortField = (field) => {
@@ -464,6 +583,108 @@ export const initDatabase = () => {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      normal_side TEXT NOT NULL,
+      description TEXT,
+      is_system INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS journal_entries (
+      id TEXT PRIMARY KEY,
+      entry_date TEXT NOT NULL,
+      description TEXT,
+      reference_type TEXT,
+      reference_id TEXT,
+      posting_event TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_journal_entries_ref
+    ON journal_entries (reference_type, reference_id, posting_event);
+
+    CREATE INDEX IF NOT EXISTS idx_journal_entries_date
+    ON journal_entries (entry_date);
+
+    CREATE TABLE IF NOT EXISTS journal_lines (
+      id TEXT PRIMARY KEY,
+      journal_entry_id TEXT NOT NULL,
+      account_code TEXT NOT NULL,
+      debit INTEGER NOT NULL DEFAULT 0,
+      credit INTEGER NOT NULL DEFAULT 0,
+      description TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_journal_lines_entry
+    ON journal_lines (journal_entry_id);
+
+    CREATE INDEX IF NOT EXISTS idx_journal_lines_account_date
+    ON journal_lines (account_code);
+
+    CREATE TABLE IF NOT EXISTS profit_share_ratios (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      share_bp INTEGER NOT NULL,
+      effective_from TEXT NOT NULL,
+      effective_to TEXT,
+      version INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_profit_share_ratios_user
+    ON profit_share_ratios (user_id);
+
+    CREATE INDEX IF NOT EXISTS idx_profit_share_ratios_version
+    ON profit_share_ratios (version);
+
+    CREATE TABLE IF NOT EXISTS profit_share_change_log (
+      id TEXT PRIMARY KEY,
+      version INTEGER NOT NULL,
+      changed_by TEXT NOT NULL,
+      reason TEXT,
+      snapshot TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS expenses (
+      id TEXT PRIMARY KEY,
+      description TEXT NOT NULL,
+      amount REAL NOT NULL,
+      account_code TEXT NOT NULL DEFAULT '6099',
+      payment_method TEXT NOT NULL DEFAULT 'cash',
+      payment_status TEXT NOT NULL DEFAULT 'paid',
+      entry_date TEXT NOT NULL,
+      notes TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_expenses_date
+    ON expenses (entry_date);
+
+    CREATE TABLE IF NOT EXISTS incomes (
+      id TEXT PRIMARY KEY,
+      description TEXT NOT NULL,
+      amount REAL NOT NULL,
+      account_code TEXT NOT NULL DEFAULT '4099',
+      payment_method TEXT NOT NULL DEFAULT 'cash',
+      payment_status TEXT NOT NULL DEFAULT 'paid',
+      entry_date TEXT NOT NULL,
+      notes TEXT,
+      created_by TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_incomes_date
+    ON incomes (entry_date);
   `);
 
   // Migration: ensure bookings table has paid_amount and payment_history
@@ -558,12 +779,93 @@ export const initDatabase = () => {
     console.error("❌ Failed to seed default desktop users:", err.message);
   }
 
+  // Migration: rename role 'user' → 'staff' (non-destructive, idempotent)
+  try {
+    const hasOldRole = db
+      .prepare("SELECT COUNT(*) as count FROM users WHERE role = 'user'")
+      .get();
+    if (hasOldRole.count > 0) {
+      db.prepare("UPDATE users SET role = 'staff' WHERE role = 'user'").run();
+      console.log(
+        `✅ Role migration: ${hasOldRole.count} user(s) renamed to 'staff'`,
+      );
+    }
+  } catch (err) {
+    console.error("⚠️ Role migration failed:", err.message);
+  }
+
+  // Seed Chart of Accounts (idempotent — skips existing codes)
+  try {
+    const seedAccounts = [
+      // Assets (1xxx)
+      { code: "1001", name: "Cash - bKash", type: "asset", normal_side: "debit", description: "Mobile banking - bKash" },
+      { code: "1002", name: "Cash - Nagad", type: "asset", normal_side: "debit", description: "Mobile banking - Nagad" },
+      { code: "1003", name: "Cash - Rocket", type: "asset", normal_side: "debit", description: "Mobile banking - Rocket" },
+      { code: "1004", name: "Cash - Physical", type: "asset", normal_side: "debit", description: "Physical cash on hand" },
+      { code: "1005", name: "Cash - Card", type: "asset", normal_side: "debit", description: "Card terminal receipts" },
+      { code: "1006", name: "Cash - Other", type: "asset", normal_side: "debit", description: "Other payment channels" },
+      { code: "1100", name: "Accounts Receivable", type: "asset", normal_side: "debit", description: "Unpaid/partial booking balances" },
+      { code: "1200", name: "Inventory", type: "asset", normal_side: "debit", description: "Product stock at cost" },
+      // Liabilities (2xxx)
+      { code: "2001", name: "Accounts Payable", type: "liability", normal_side: "credit", description: "Unpaid obligations" },
+      // Equity (3xxx)
+      { code: "3000", name: "Retained Earnings", type: "equity", normal_side: "credit", description: "Accumulated net profit" },
+      { code: "3100", name: "Partner Drawings", type: "equity", normal_side: "debit", description: "Payouts to partners (contra-equity)" },
+      // Revenue (4xxx)
+      { code: "4001", name: "Booking Revenue", type: "revenue", normal_side: "credit", description: "Turf rental income" },
+      { code: "4002", name: "Product Sales Revenue", type: "revenue", normal_side: "credit", description: "POS/retail product sales" },
+      { code: "4003", name: "Tournament Revenue", type: "revenue", normal_side: "credit", description: "Tournament entry fees" },
+      { code: "4099", name: "Miscellaneous Revenue", type: "revenue", normal_side: "credit", description: "Other income (sponsorships, etc.)" },
+      // COGS (5xxx)
+      { code: "5001", name: "Cost of Goods Sold", type: "cogs", normal_side: "debit", description: "Product cost basis on sale" },
+      // Expenses (6xxx)
+      { code: "6001", name: "Rent", type: "expense", normal_side: "debit", description: "Venue/space rental" },
+      { code: "6002", name: "Utilities", type: "expense", normal_side: "debit", description: "Electric, water, internet" },
+      { code: "6003", name: "Salaries & Wages", type: "expense", normal_side: "debit", description: "Staff compensation" },
+      { code: "6004", name: "Maintenance", type: "expense", normal_side: "debit", description: "Turf/facility upkeep" },
+      { code: "6005", name: "Marketing", type: "expense", normal_side: "debit", description: "Advertising, promotions" },
+      { code: "6006", name: "Equipment", type: "expense", normal_side: "debit", description: "Gear, tools, hardware" },
+      { code: "6099", name: "Miscellaneous Expense", type: "expense", normal_side: "debit", description: "Uncategorized expenses" },
+    ];
+
+    const insertAccount = db.prepare(`
+      INSERT OR IGNORE INTO accounts (id, code, name, type, normal_side, description, is_system, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, 'active', ?)
+    `);
+
+    const now = new Date().toISOString();
+    let seeded = 0;
+    for (const acct of seedAccounts) {
+      const result = insertAccount.run(
+        crypto.randomUUID(),
+        acct.code,
+        acct.name,
+        acct.type,
+        acct.normal_side,
+        acct.description,
+        now,
+      );
+      if (result.changes > 0) seeded++;
+    }
+    if (seeded > 0) {
+      console.log(`✅ Chart of Accounts seeded: ${seeded} account(s) created`);
+    }
+  } catch (err) {
+    console.error("❌ Failed to seed Chart of Accounts:", err.message);
+  }
+
   return db;
 };
 
 export const getDatabase = () => {
   if (!db) return initDatabase();
   return db;
+};
+
+export const runTransaction = (fn) => {
+  const database = getDatabase();
+  const transaction = database.transaction(fn);
+  return transaction();
 };
 
 export const createRecord = (table, payload = {}) => {
@@ -661,6 +963,12 @@ export const incrementColumn = (table, id, column, value) => {
 export const clearAllTables = () => {
   const database = getDatabase();
   database.exec(`
+    DELETE FROM journal_lines;
+    DELETE FROM journal_entries;
+    DELETE FROM profit_share_ratios;
+    DELETE FROM profit_share_change_log;
+    DELETE FROM expenses;
+    DELETE FROM incomes;
     DELETE FROM payments;
     DELETE FROM bookings;
     DELETE FROM orders;
