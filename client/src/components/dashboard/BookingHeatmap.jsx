@@ -1,12 +1,16 @@
 import React from "react";
 import { Card } from "@/components/ui/card";
+import { formatTime } from "@/lib/utils";
+import { startOfWeek, addDays, format } from "date-fns";
 
-const hours = Array.from({ length: 18 }, (_, i) => i + 6);
-const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const hours = Array.from({ length: 12 }, (_, i) => 6 + (i * 1.5));
 
 export default function BookingHeatmap({ bookings }) {
+  const weekStart = addDays(new Date(), -1); // Yesterday
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
   const grid = {};
-  days.forEach((d, di) => {
+  weekDays.forEach((d, di) => {
     hours.forEach((h) => {
       grid[`${di}-${h}`] = 0;
     });
@@ -14,9 +18,11 @@ export default function BookingHeatmap({ bookings }) {
 
   bookings.forEach((b) => {
     if (!b.date) return;
-    const d = new Date(b.date);
-    const dayIdx = (d.getDay() + 6) % 7;
-    for (let h = b.start_hour; h < b.end_hour; h++) {
+    const bDate = b.date.split("T")[0];
+    const dayIdx = weekDays.findIndex((d) => format(d, "yyyy-MM-dd") === bDate);
+    if (dayIdx === -1) return; // Ignore bookings outside current week
+
+    for (let h = b.start_hour; h < b.end_hour; h += 1.5) {
       const key = `${dayIdx}-${h}`;
       if (grid[key] !== undefined) grid[key]++;
     }
@@ -38,21 +44,26 @@ export default function BookingHeatmap({ bookings }) {
       <h3 className="text-sm font-semibold text-gray-800 mb-4">Booking Heatmap</h3>
       <div className="overflow-x-auto">
         <div className="min-w-[500px]">
-          <div className="flex gap-1 mb-1 ml-10">
+          <div className="flex gap-1 mb-1 ml-14">
             {hours.map((h) => (
-              <div key={h} className="flex-1 text-center text-[9px] text-gray-400">
-                {h}:00
+              <div key={h} className="flex-1 text-center text-[8px] text-gray-400 flex flex-col leading-tight">
+                <span>{formatTime(h).replace(' ', '')}</span>
+                <span className="text-[6px]">-</span>
+                <span>{formatTime(h+1.5).replace(' ', '')}</span>
               </div>
             ))}
           </div>
-          {days.map((day, di) => (
-            <div key={day} className="flex items-center gap-1 mb-1">
-              <span className="w-8 text-[10px] text-gray-400 text-right mr-1">{day}</span>
+          {weekDays.map((d, di) => (
+            <div key={d.toISOString()} className="flex items-center gap-1 mb-1">
+              <div className="w-12 text-[9px] text-gray-400 text-right mr-1 leading-tight flex-shrink-0">
+                <span className="font-semibold text-gray-600">{format(d, "EEE")}</span><br/>
+                {format(d, "MMM d")}
+              </div>
               {hours.map((h) => (
                 <div
                   key={h}
-                  className={`flex-1 h-5 rounded-sm ${getColor(grid[`${di}-${h}`])} transition-colors`}
-                  title={`${day} ${h}:00 - ${grid[`${di}-${h}`]} bookings`}
+                  className={`flex-1 h-8 rounded-sm ${getColor(grid[`${di}-${h}`])} transition-colors`}
+                  title={`${format(d, "MMM d")} ${formatTime(h)} - ${formatTime(h+1.5)}: ${grid[`${di}-${h}`]} bookings`}
                 />
               ))}
             </div>

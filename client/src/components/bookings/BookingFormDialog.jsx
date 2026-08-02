@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { formatTime } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -82,6 +83,9 @@ export default function BookingFormDialog({
   const [endMinute, setEndMinute] = useState("00");
   const [endMeridiem, setEndMeridiem] = useState("PM");
 
+  const [selectedSlots, setSelectedSlots] = useState([]);
+  const ALL_SLOTS = Array.from({ length: 12 }, (_, i) => 6 + i * 1.5);
+
   const to12 = (value24) => {
     const totalMinutes = Math.round(Number(value24 || 0) * 60);
     const safeMinutes = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
@@ -131,22 +135,18 @@ export default function BookingFormDialog({
         const existingTotal = Number(booking.total_price || 0);
         const due = Math.max(0, existingTotal - existingPaid);
         setForm({ ...defaults, ...booking, paid_amount: due, txn_id: "" });
+        
+        const slots = [];
+        for (let h = booking.start_hour; h < booking.end_hour; h += 1.5) {
+          slots.push(h);
+        }
+        setSelectedSlots(slots);
       } else {
         setForm(defaults);
+        setSelectedSlots([18]); // 6:00 PM default
       }
     }
   }, [booking, open, defaults]);
-
-  useEffect(() => {
-    const s = to12(form.start_hour);
-    const e = to12(form.end_hour);
-    setStartHour12(String(s.hour));
-    setStartMinute(String(s.minute).padStart(2, "0"));
-    setStartMeridiem(s.meridiem);
-    setEndHour12(String(e.hour));
-    setEndMinute(String(e.minute).padStart(2, "0"));
-    setEndMeridiem(e.meridiem);
-  }, [form.start_hour, form.end_hour]);
 
   const set = (key, val) => setForm((p) => ({ ...p, [key]: val }));
 
@@ -174,6 +174,39 @@ export default function BookingFormDialog({
         rangeEnd > Number(b.start_hour)
       );
     });
+  };
+
+  const isSlotBooked = (slotStart) => hasRangeConflict(slotStart, slotStart + 1.5);
+
+  const isContiguous = (slots) => {
+    if (slots.length <= 1) return true;
+    const sorted = [...slots].sort((a, b) => a - b);
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] - sorted[i - 1] !== 1.5) return false;
+    }
+    return true;
+  };
+
+  const toggleSlot = (slot) => {
+    if (isSlotBooked(slot)) return;
+    
+    let newSlots = selectedSlots.includes(slot) 
+      ? selectedSlots.filter(s => s !== slot)
+      : [...selectedSlots, slot];
+      
+    if (!isContiguous(newSlots)) {
+      newSlots = [slot]; // reset if non-contiguous
+    }
+    
+    setSelectedSlots(newSlots);
+    if (newSlots.length > 0) {
+      const sorted = [...newSlots].sort((a,b)=>a-b);
+      set("start_hour", sorted[0]);
+      set("end_hour", sorted[sorted.length-1] + 1.5);
+    } else {
+      set("start_hour", 0);
+      set("end_hour", 0);
+    }
   };
 
   const totalPrice = useMemo(
@@ -347,101 +380,39 @@ export default function BookingFormDialog({
               onChange={(e) => set("date", e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Start Time</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={startHour12}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setStartHour12(val);
-                    const converted = to24(val, startMinute, startMeridiem);
-                    if (converted !== null) set("start_hour", converted);
-                  }}
-                  placeholder="HH"
-                />
-                <Input
-                  type="number"
-                  min={0}
-                  max={59}
-                  value={startMinute}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setStartMinute(val);
-                    const converted = to24(startHour12, val, startMeridiem);
-                    if (converted !== null) set("start_hour", converted);
-                  }}
-                  placeholder="MM"
-                />
-                <Select
-                  value={startMeridiem}
-                  onValueChange={(v) => {
-                    setStartMeridiem(v);
-                    const converted = to24(startHour12, startMinute, v);
-                    if (converted !== null) set("start_hour", converted);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="AM">AM</SelectItem>
-                    <SelectItem value="PM">PM</SelectItem>
-                  </SelectContent>
-                </Select>
+          <div className="space-y-2">
+            <Label>Select Time Slots (90 min each)</Label>
+            {!form.turf_id || !form.date ? (
+              <div className="text-sm text-gray-400 p-4 border border-dashed border-gray-200 rounded-lg text-center">
+                Please select a Turf and Date first.
               </div>
-            </div>
-            <div>
-              <Label>End Time</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={endHour12}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setEndHour12(val);
-                    const converted = to24(val, endMinute, endMeridiem);
-                    if (converted !== null) set("end_hour", converted);
-                  }}
-                  placeholder="HH"
-                />
-                <Input
-                  type="number"
-                  min={0}
-                  max={59}
-                  value={endMinute}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setEndMinute(val);
-                    const converted = to24(endHour12, val, endMeridiem);
-                    if (converted !== null) set("end_hour", converted);
-                  }}
-                  placeholder="MM"
-                />
-                <Select
-                  value={endMeridiem}
-                  onValueChange={(v) => {
-                    setEndMeridiem(v);
-                    const converted = to24(endHour12, endMinute, v);
-                    if (converted !== null) set("end_hour", converted);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="AM">AM</SelectItem>
-                    <SelectItem value="PM">PM</SelectItem>
-                  </SelectContent>
-                </Select>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {ALL_SLOTS.map((slot) => {
+                  const booked = isSlotBooked(slot);
+                  const selected = selectedSlots.includes(slot);
+                  return (
+                    <Button
+                      key={slot}
+                      type="button"
+                      variant={selected ? "default" : "outline"}
+                      className={`justify-start text-xs ${
+                        selected 
+                          ? "bg-emerald-600 hover:bg-emerald-700" 
+                          : booked 
+                            ? "bg-gray-100 text-gray-400 border-gray-100 cursor-not-allowed opacity-60" 
+                            : ""
+                      }`}
+                      onClick={() => !booked && toggleSlot(slot)}
+                      disabled={booked}
+                    >
+                      {formatTime(slot)} - {formatTime(slot + 1.5)}
+                    </Button>
+                  );
+                })}
               </div>
-            </div>
+            )}
+            <p className="text-[10px] text-gray-400 mt-1">Select consecutive slots to book a longer session.</p>
           </div>
 
           {invalidTimeRange && (

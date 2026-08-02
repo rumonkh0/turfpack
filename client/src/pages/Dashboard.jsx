@@ -7,29 +7,37 @@ import StatCard from "@/components/dashboard/StatCard";
 import RevenueChart from "@/components/dashboard/RevenueChart";
 import BookingHeatmap from "@/components/dashboard/BookingHeatmap";
 import RecentBookings from "@/components/dashboard/RecentBookings";
+import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const { data: dashboard, isLoading: ld } = useQuery({
+    queryKey: ["dashboard_stats"],
+    queryFn: () => apiClient.entities.Report.dashboard({ period: "monthly" }),
+  });
+
   const { data: bookings = [], isLoading: lb } = useQuery({
-    queryKey: ["bookings"],
-    queryFn: () => apiClient.entities.Booking.list("-created_date", 200),
+    queryKey: ["bookings", "dashboard"],
+    queryFn: () => apiClient.entities.Booking.list("-created_date", 50),
   });
+
   const { data: payments = [], isLoading: lp } = useQuery({
-    queryKey: ["payments"],
-    queryFn: () => apiClient.entities.Payment.list("-created_date", 200),
+    queryKey: ["payments", "dashboard"],
+    queryFn: () => apiClient.entities.Payment.list("-created_date", 100),
   });
+
   const { data: turfs = [], isLoading: lt } = useQuery({
     queryKey: ["turfs"],
     queryFn: () => apiClient.entities.Turf.list(),
   });
 
-  const isLoading = lb || lp || lt;
+  const isLoading = ld || lb || lp || lt;
 
-  const today = new Date().toISOString().split("T")[0];
-  const todayBookings = bookings.filter((b) => b.date === today);
-  const totalRevenue = payments
-    .filter((p) => p.status === "completed")
-    .reduce((s, p) => s + (p.amount || 0), 0);
-  const uniqueCustomers = new Set(bookings.map((b) => b.customer_phone)).size;
+  const formatCurrency = (amountInPoisha) => {
+    return `৳${((amountInPoisha || 0) / 100).toLocaleString("en-US", {
+      minimumFractionDigits: 0,
+    })}`;
+  };
 
   return (
     <div className="space-y-6">
@@ -47,32 +55,36 @@ export default function Dashboard() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            title="Today's Bookings"
-            value={todayBookings.length}
-            subtitle={`${bookings.length} total`}
-            icon={Calendar}
+            title="Net Profit (Monthly)"
+            value={formatCurrency(dashboard?.net_profit)}
+            subtitle="Current month"
+            icon={TrendingUp}
             color="emerald"
+            onClick={() => navigate("/reports", { state: { tab: "pnl" } })}
           />
           <StatCard
-            title="Total Revenue"
-            value={`৳${totalRevenue.toLocaleString()}`}
-            subtitle={`${payments.filter((p) => p.status === "completed").length} payments`}
+            title="Total Revenue (Monthly)"
+            value={formatCurrency(dashboard?.total_revenue)}
+            subtitle="Current month"
             icon={CreditCard}
             color="blue"
+            onClick={() => navigate("/reports", { state: { tab: "pnl" } })}
           />
           <StatCard
-            title="Active Turfs"
-            value={turfs.filter((t) => t.status === "active").length}
-            subtitle={`${turfs.length} total`}
-            icon={MapPin}
+            title="Total Cash on Hand"
+            value={formatCurrency(dashboard?.total_cash)}
+            subtitle="Across all accounts"
+            icon={Calendar}
             color="amber"
+            onClick={() => navigate("/reports", { state: { tab: "cash" } })}
           />
           <StatCard
-            title="Customers"
-            value={uniqueCustomers}
-            subtitle="unique customers"
+            title="Outstanding Receivables"
+            value={formatCurrency(dashboard?.total_receivables)}
+            subtitle="Unpaid bookings"
             icon={Users}
             color="violet"
+            onClick={() => navigate("/reports", { state: { tab: "receivables" } })}
           />
         </div>
       )}

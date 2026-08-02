@@ -1,7 +1,7 @@
 import React from "react";
 import { Card } from "@/components/ui/card";
 
-export default function StatCard({ title, value, subtitle, icon: Icon, color = "emerald" }) {
+export default function StatCard({ title, value, subtitle, icon: Icon, color = "emerald", onClick }) {
   const colorMap = {
     emerald: { bg: "bg-emerald-50", icon: "text-emerald-600" },
     blue: { bg: "bg-blue-50", icon: "text-blue-600" },
@@ -12,7 +12,10 @@ export default function StatCard({ title, value, subtitle, icon: Icon, color = "
   const c = colorMap[color] || colorMap.emerald;
 
   return (
-    <Card className="p-5 border-0 shadow-sm hover:shadow-md transition-shadow">
+    <Card 
+      className={`p-5 border-0 shadow-sm transition-shadow ${onClick ? 'cursor-pointer hover:shadow-md' : 'hover:shadow-md'}`}
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">{title}</p>

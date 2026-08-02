@@ -150,6 +150,36 @@ export const apiClient = {
         const query = new URLSearchParams(params).toString();
         const res = await fetch(`${API_URL}/reports/profit-loss${query ? `?${query}` : ''}`, { headers: getAuthHeader() });
         return handleResponse(res);
+      },
+      cashPosition: async (params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/reports/cash-position${query ? `?${query}` : ''}`, { headers: getAuthHeader() });
+        return handleResponse(res);
+      },
+      receivables: async (params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/reports/receivables${query ? `?${query}` : ''}`, { headers: getAuthHeader() });
+        return handleResponse(res);
+      },
+      partnerShares: async (params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/reports/partner-shares${query ? `?${query}` : ''}`, { headers: getAuthHeader() });
+        return handleResponse(res);
+      },
+      revenueBreakdown: async (params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/reports/revenue-breakdown${query ? `?${query}` : ''}`, { headers: getAuthHeader() });
+        return handleResponse(res);
+      },
+      expenseBreakdown: async (params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/reports/expense-breakdown${query ? `?${query}` : ''}`, { headers: getAuthHeader() });
+        return handleResponse(res);
+      },
+      dashboard: async (params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/reports/dashboard${query ? `?${query}` : ''}`, { headers: getAuthHeader() });
+        return handleResponse(res);
       }
     }
   },

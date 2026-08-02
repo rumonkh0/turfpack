@@ -20,7 +20,8 @@ export default function BookingCalendar({
 }) {
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const hours = Array.from({ length: 17 }, (_, i) => i + 6);
+  // 12 slots of 1.5 hours from 6:00 to 00:00
+  const hours = Array.from({ length: 12 }, (_, i) => 6 + i * 1.5);
 
   return (
     <Card className="border-0 shadow-sm overflow-hidden">
@@ -67,30 +68,29 @@ export default function BookingCalendar({
                 const slotBookings = bookings.filter(
                   (b) =>
                     b.date === dateStr &&
-                    b.start_hour <= h &&
-                    b.end_hour > h &&
+                    b.start_hour >= h &&
+                    b.start_hour < h + 1.5 &&
                     b.status !== "cancelled",
                 );
                 return (
                   <div
                     key={dateStr + h}
-                    className="min-h-[32px] border-l border-gray-50 px-0.5 py-0.5"
+                    className="min-h-[48px] border-l border-gray-50 px-0.5 py-0.5 relative"
                   >
-                    {slotBookings.map(
-                      (b) =>
-                        h === Math.floor(b.start_hour) && (
-                          <div
-                            key={b.id}
-                            className={`${statusColors[b.status]} text-white text-[9px] px-1.5 py-0.5 rounded truncate`}
-                            style={{
-                              height: `${(b.end_hour - b.start_hour) * 32 - 4}px`,
-                            }}
-                            title={`${b.customer_name} (${b.turf_name}) ${formatTime(b.start_hour)} – ${formatTime(b.end_hour)}`}
-                          >
-                            {b.customer_name}
-                          </div>
-                        ),
-                    )}
+                    {slotBookings.map((b) => (
+                      <div
+                        key={b.id}
+                        className={`${statusColors[b.status]} text-white text-[9px] px-1.5 py-0.5 rounded truncate absolute w-[calc(100%-4px)]`}
+                        style={{
+                          top: `${((b.start_hour - h) / 1.5) * 48}px`,
+                          height: `${((b.end_hour - b.start_hour) / 1.5) * 48 - 2}px`,
+                          zIndex: 10
+                        }}
+                        title={`${b.customer_name} (${b.turf_name}) ${formatTime(b.start_hour)} – ${formatTime(b.end_hour)}`}
+                      >
+                        {b.customer_name}
+                      </div>
+                    ))}
                   </div>
                 );
               })}
