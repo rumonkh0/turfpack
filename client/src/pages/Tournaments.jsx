@@ -14,6 +14,7 @@ import {
 import { Plus, Trophy, Users, Calendar, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import TournamentDetails from "@/components/tournaments/TournamentDetails";
 
 const statusColors = {
   upcoming: "bg-blue-50 text-blue-700",
@@ -27,6 +28,7 @@ export default function Tournaments() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedTournament, setSelectedTournament] = useState(null);
   const [form, setForm] = useState({
     name: "", turf_id: "", turf_name: "", start_date: "", end_date: "",
     max_teams: 8, entry_fee: 5000, prize_pool: 20000, status: "upcoming",
@@ -53,8 +55,24 @@ export default function Tournaments() {
     queryClient.invalidateQueries({ queryKey: ["tournaments"] });
   };
 
+  if (selectedTournament) {
+    // Find the freshest data for the selected tournament
+    const currentTournament = tournaments.find(t => t.id === selectedTournament.id) || selectedTournament;
+    
+    return (
+      <TournamentDetails 
+        tournament={currentTournament} 
+        onBack={() => setSelectedTournament(null)}
+        onUpdate={(updated) => {
+          // React Query invalidate handles fetching, but we can also manually update local state if needed
+          queryClient.invalidateQueries({ queryKey: ["tournaments"] });
+        }}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-300">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tournaments</h1>
@@ -77,11 +95,15 @@ export default function Tournaments() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {tournaments.map((t) => (
-            <Card key={t.id} className="border-0 shadow-sm p-5 hover:shadow-md transition-shadow">
+            <Card 
+              key={t.id} 
+              className="border-0 shadow-sm p-5 hover:shadow-md hover:ring-1 hover:ring-emerald-500/20 transition-all cursor-pointer group"
+              onClick={() => setSelectedTournament(t)}
+            >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h3 className="font-semibold text-gray-900">{t.name}</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{t.turf_name} · {t.format}</p>
+                  <h3 className="font-semibold text-gray-900 group-hover:text-emerald-700 transition-colors">{t.name}</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">{t.turf_name} · {t.format?.replace(/_/g, ' ')}</p>
                 </div>
                 <Badge className={`text-[10px] ${statusColors[t.status] || ""}`}>
                   {t.status?.replace(/_/g, " ")}
