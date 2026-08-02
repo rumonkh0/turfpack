@@ -56,8 +56,13 @@ import Tournaments from './pages/Tournaments';
 import PublicBooking from './pages/PublicBooking';
 import Login from './pages/Login';
 import Users from './pages/Users';
+import Ledger from './pages/Ledger';
+import Accounts from './pages/Accounts';
+import Expenses from './pages/Expenses';
+import Incomes from './pages/Incomes';
+import Partners from './pages/Partners';
+import Reports from './pages/Reports';
 import __Layout from './Layout.jsx';
-
 
 export const PAGES = {
     "Dashboard": Dashboard,
@@ -69,6 +74,12 @@ export const PAGES = {
     "PublicBooking": PublicBooking,
     "Login": Login,
     "Users": Users,
+    "Ledger": Ledger,
+    "Accounts": Accounts,
+    "Expenses": Expenses,
+    "Incomes": Incomes,
+    "Partners": Partners,
+    "Reports": Reports,
 }
 
 export const pagesConfig = {

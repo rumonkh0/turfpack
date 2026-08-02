@@ -11,17 +11,32 @@ import {
   Trophy,
   Menu,
   ArrowLeftRight,
+  Book,
+  FileText,
+  Briefcase,
+  TrendingDown,
+  TrendingUp,
+  Landmark,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const navItems = [
+const standardNavItems = [
   { name: "Dashboard", icon: LayoutDashboard, page: "Dashboard" },
   { name: "Turfs", icon: MapPin, page: "Turfs" },
   { name: "Bookings", icon: Calendar, page: "Bookings" },
   { name: "Payments", icon: CreditCard, page: "Payments" },
   { name: "Customers", icon: Users, page: "Customers" },
-  { name: "Users", icon: Users, page: "Users" },
   { name: "Tournaments", icon: Trophy, page: "Tournaments" },
+];
+
+const adminOnlyNavItems = [
+  { name: "Reports", icon: FileText, page: "Reports" },
+  { name: "Accounts", icon: Landmark, page: "Accounts" },
+  { name: "Ledger", icon: Book, page: "Ledger" },
+  { name: "Expenses", icon: TrendingDown, page: "Expenses" },
+  { name: "Incomes", icon: TrendingUp, page: "Incomes" },
+  { name: "Partners", icon: Briefcase, page: "Partners" },
+  { name: "Users", icon: Users, page: "Users" },
 ];
 
 export default function Layout({ children, currentPageName }) {
@@ -31,9 +46,15 @@ export default function Layout({ children, currentPageName }) {
   const isDesktopApp =
     typeof navigator !== "undefined" &&
     navigator.userAgent.includes("Electron");
-  const visibleNavItems = isDesktopApp
-    ? navItems.filter((item) => item.page !== "Users")
-    : navItems;
+  
+  let visibleNavItems = [...standardNavItems];
+  if (user?.role === "admin") {
+    visibleNavItems = [...visibleNavItems, ...adminOnlyNavItems];
+  }
+
+  if (isDesktopApp) {
+    visibleNavItems = visibleNavItems.filter((item) => item.page !== "Users");
+  }
 
   const openAdminDetails = () => {
     if (!user) return;
@@ -51,6 +72,24 @@ export default function Layout({ children, currentPageName }) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         {children}
+      </div>
+    );
+  }
+
+  const isAdmin = user?.role === "admin";
+  const isAdminOnlyPage = adminOnlyNavItems.some(item => item.page === currentPageName);
+
+  if (!isAdmin && isAdminOnlyPage && !isLoadingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Access Denied</h2>
+          <p className="text-gray-500 mt-2 mb-6">You don't have permission to access the {currentPageName} page.</p>
+          <Button onClick={() => navigate('/')} className="w-full">Return to Dashboard</Button>
+        </div>
       </div>
     );
   }

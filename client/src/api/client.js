@@ -109,6 +109,49 @@ export const apiClient = {
     Tournament: entityApi("tournaments"),
     Payment: entityApi("payments"),
     User: entityApi("users"),
+    Account: entityApi("accounts"),
+    Expense: entityApi("expenses"),
+    Income: entityApi("incomes"),
+    Partner: {
+      ...entityApi("partners"),
+      reallocate: async (payload) => {
+        const res = await fetch(`${API_URL}/partners/reallocate`, {
+          method: "POST",
+          headers: { ...getAuthHeader(), "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        return handleResponse(res);
+      },
+      sharesHistory: async (limit = 20) => {
+        const res = await fetch(`${API_URL}/partners/shares/history?limit=${limit}`, { headers: getAuthHeader() });
+        return handleResponse(res);
+      },
+      payouts: {
+        list: async (params = {}) => {
+          const query = new URLSearchParams(params).toString();
+          const res = await fetch(`${API_URL}/partners/payouts${query ? `?${query}` : ''}`, { headers: getAuthHeader() });
+          return handleResponse(res);
+        },
+        create: async (payload) => {
+          const res = await fetch(`${API_URL}/partners/payouts`, {
+            method: "POST",
+            headers: { ...getAuthHeader(), "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          return handleResponse(res);
+        }
+      }
+    },
+    Ledger: {
+      ...entityApi("ledger")
+    },
+    Report: {
+      profitLoss: async (params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`${API_URL}/reports/profit-loss${query ? `?${query}` : ''}`, { headers: getAuthHeader() });
+        return handleResponse(res);
+      }
+    }
   },
   integrations: {
     Core: {
