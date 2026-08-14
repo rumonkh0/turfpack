@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const JSON_COLUMNS = {
   Turf: ["amenities"],
@@ -8,6 +8,14 @@ const JSON_COLUMNS = {
   Tournament: ["teams"],
   ProfitShareChangeLog: ["snapshot"]
 };
+
+// Build valid fields set for every model dynamically from Prisma DMMF
+const MODEL_FIELDS = {};
+if (Prisma && Prisma.dmmf && Prisma.dmmf.datamodel && Prisma.dmmf.datamodel.models) {
+  for (const m of Prisma.dmmf.datamodel.models) {
+    MODEL_FIELDS[m.name] = new Set(m.fields.map(f => f.name));
+  }
+}
 
 // Map Prisma model names (e.g. 'User') to table names used in controllers (e.g. 'users')
 const TABLE_MODEL_MAP = {
@@ -28,6 +36,20 @@ const TABLE_MODEL_MAP = {
   app_settings: "AppSetting"
 };
 
+const sanitizeModelData = (data, modelName) => {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return data;
+  const validFields = MODEL_FIELDS[modelName];
+  if (!validFields) return data;
+
+  const clean = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (validFields.has(key)) {
+      clean[key] = value;
+    }
+  }
+  return clean;
+};
+
 const prisma = new PrismaClient().$extends({
   result: {
     $allModels: {
@@ -42,19 +64,25 @@ const prisma = new PrismaClient().$extends({
   query: {
     $allModels: {
       async $allOperations({ model, operation, args, query }) {
-        // Stringify JSON columns before writing to DB
+        // Sanitize extra/unknown fields and handle JSON columns before writing to DB
         if (["create", "update", "updateMany", "createMany"].includes(operation) && args.data) {
           const jsonCols = JSON_COLUMNS[model];
-          if (jsonCols) {
-            if (Array.isArray(args.data)) { // createMany
-              for (const row of args.data) {
+
+          if (Array.isArray(args.data)) { // createMany
+            args.data = args.data.map(row => {
+              const clean = sanitizeModelData(row, model);
+              if (jsonCols) {
                 for (const col of jsonCols) {
-                  if (row[col] !== undefined && typeof row[col] !== "string") {
-                    row[col] = JSON.stringify(row[col]);
+                  if (clean[col] !== undefined && typeof clean[col] !== "string") {
+                    clean[col] = JSON.stringify(clean[col]);
                   }
                 }
               }
-            } else { // create, update
+              return clean;
+            });
+          } else { // create, update
+            args.data = sanitizeModelData(args.data, model);
+            if (jsonCols) {
               for (const col of jsonCols) {
                 if (args.data[col] !== undefined && typeof args.data[col] !== "string") {
                   args.data[col] = JSON.stringify(args.data[col]);

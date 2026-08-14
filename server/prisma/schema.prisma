@@ -36,10 +36,10 @@ model Turf {
   base_price        Float    @default(0)
   peak_price        Float    @default(0)
   night_price       Float    @default(0)
-  opening_hour      Int      @default(6)
-  closing_hour      Int      @default(23)
-  peak_hours_start  Int      @default(17)
-  peak_hours_end    Int      @default(21)
+  opening_hour      Float    @default(6)
+  closing_hour      Float    @default(23)
+  peak_hours_start  Float    @default(17)
+  peak_hours_end    Float    @default(21)
   weekend_multiplier Float   @default(1.2)
   amenities         String?  @db.Text // JSON string
   created_at        DateTime @default(now())
@@ -55,8 +55,8 @@ model Booking {
   customer_phone   String
   customer_email   String?
   date             String
-  start_hour       Int
-  end_hour         Int
+  start_hour       Float
+  end_hour         Float
   duration_hours   Float?
   total_price      Float
   paid_amount      Float    @default(0)

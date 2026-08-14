@@ -55,14 +55,17 @@ export const createBooking = asyncHandler(async (req, res, next) => {
     );
   }
 
+  const startHour = Number(req.body.start_hour);
+  const endHour = Number(req.body.end_hour || req.body.start_hour + 1);
+
   // Check for conflicts
   const conflict = await prisma.booking.findFirst({
     where: {
       turf_id: req.body.turf_id,
       date: req.body.date,
       status: { not: 'cancelled' },
-      start_hour: { lt: req.body.end_hour || req.body.start_hour + 1 },
-      end_hour: { gt: req.body.start_hour },
+      start_hour: { lt: endHour },
+      end_hour: { gt: startHour },
     }
   });
 
@@ -73,6 +76,11 @@ export const createBooking = asyncHandler(async (req, res, next) => {
   const booking = await prisma.booking.create({
     data: {
       ...req.body,
+      start_hour: startHour,
+      end_hour: endHour,
+      duration_hours: req.body.duration_hours !== undefined ? Number(req.body.duration_hours) : (endHour - startHour),
+      total_price: Number(req.body.total_price || 0),
+      paid_amount: Number(req.body.paid_amount || 0),
       turf_id: req.body.turf_id,
       turf_name: turf.name,
     }
