@@ -54,6 +54,7 @@ const allowedOrigins = [
   "https://turf.rumon.top",
   "https://admin.turf.rumon.top",
   "https://api.turf.rumon.top",
+  "https://turfslotapi.rumon.top",
 ];
 
 const corsOptions = {
