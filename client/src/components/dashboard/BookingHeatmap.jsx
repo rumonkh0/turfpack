@@ -5,9 +5,9 @@ import { startOfWeek, addDays, format } from "date-fns";
 
 const hours = Array.from({ length: 12 }, (_, i) => 6 + (i * 1.5));
 
-export default function BookingHeatmap({ bookings }) {
-  const weekStart = addDays(new Date(), -1); // Yesterday
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+export default function BookingHeatmap({ bookings = [] }) {
+  // Show past 7 days up to today
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(new Date(), -6 + i));
 
   const grid = {};
   weekDays.forEach((d, di) => {
@@ -16,16 +16,22 @@ export default function BookingHeatmap({ bookings }) {
     });
   });
 
-  bookings.forEach((b) => {
-    if (!b.date) return;
-    const bDate = b.date.split("T")[0];
+  (bookings || []).forEach((b) => {
+    if (!b.date || b.status === "cancelled") return;
+    const bDate = typeof b.date === "string" ? b.date.split("T")[0] : new Date(b.date).toISOString().split("T")[0];
     const dayIdx = weekDays.findIndex((d) => format(d, "yyyy-MM-dd") === bDate);
-    if (dayIdx === -1) return; // Ignore bookings outside current week
+    if (dayIdx === -1) return; // Ignore bookings outside current week range
 
-    for (let h = b.start_hour; h < b.end_hour; h += 1.5) {
-      const key = `${dayIdx}-${h}`;
-      if (grid[key] !== undefined) grid[key]++;
-    }
+    const startH = Number(b.start_hour);
+    const endH = Number(b.end_hour);
+
+    hours.forEach((h) => {
+      const slotEnd = h + 1.5;
+      if (startH < slotEnd && endH > h) {
+        const key = `${dayIdx}-${h}`;
+        if (grid[key] !== undefined) grid[key]++;
+      }
+    });
   });
 
   const maxVal = Math.max(1, ...Object.values(grid));

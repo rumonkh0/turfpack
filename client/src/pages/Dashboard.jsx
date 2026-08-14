@@ -18,12 +18,12 @@ export default function Dashboard() {
 
   const { data: bookings = [], isLoading: lb } = useQuery({
     queryKey: ["bookings", "dashboard"],
-    queryFn: () => apiClient.entities.Booking.list("-created_date", 50),
+    queryFn: () => apiClient.entities.Booking.list("-created_at", 300),
   });
 
   const { data: payments = [], isLoading: lp } = useQuery({
     queryKey: ["payments", "dashboard"],
-    queryFn: () => apiClient.entities.Payment.list("-created_date", 100),
+    queryFn: () => apiClient.entities.Payment.list("-created_at", 300),
   });
 
   const { data: turfs = [], isLoading: lt } = useQuery({

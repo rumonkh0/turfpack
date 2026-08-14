@@ -4,18 +4,21 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
 
-export default function RevenueChart({ payments }) {
+export default function RevenueChart({ payments = [] }) {
   const last7Days = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const dateStr = d.toISOString().split("T")[0];
-    const dayPayments = payments.filter(
-      (p) => p.created_date?.startsWith(dateStr) && p.status === "completed"
-    );
-    const total = dayPayments.reduce((s, p) => s + (p.amount || 0), 0);
+    const dayPayments = (payments || []).filter((p) => {
+      const pRaw = p.created_at || p.createdAt || p.created_date || p.date || "";
+      const pDateStr = typeof pRaw === "string" ? pRaw.slice(0, 10) : (pRaw ? new Date(pRaw).toISOString().slice(0, 10) : "");
+      return pDateStr === dateStr && (p.status === "completed" || p.status === "paid" || !p.status);
+    });
+    const total = dayPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     last7Days.push({
-      date: d.toLocaleDateString("en", { weekday: "short" }),
+      date: d.toLocaleDateString("en-US", { weekday: "short" }),
+      dateStr,
       revenue: total,
     });
   }
