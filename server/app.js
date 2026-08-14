@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
@@ -161,5 +162,21 @@ if (shouldServeClient && clientDistPath) {
 
 // Error handling middleware
 app.use(errorHandler);
+
+// If app.js is configured as the startup file in cPanel / Node
+const isDirectRun = process.argv[1] && (
+  process.argv[1].endsWith("app.js") || 
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+);
+
+if (isDirectRun) {
+  import("./config/db.js").then(({ default: connectDB }) => {
+    connectDB();
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`🚀 App started directly on port ${PORT}`);
+    });
+  });
+}
 
 export default app;
