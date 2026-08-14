@@ -1,7 +1,7 @@
-import { initDatabase, getDbPath } from "../db/sqlite.js";
+import prisma from "../db/prismaClient.js";
 
 /**
- * SQLite connection setup
+ * Prisma connection setup
  */
 const connectDB = async () => {
   // Try to load dotenv only in development
@@ -15,10 +15,10 @@ const connectDB = async () => {
   }
 
   try {
-    initDatabase();
-    console.log(`✅ SQLite Connected: ${getDbPath()}`);
+    await prisma.$connect();
+    console.log(`✅ Prisma Connected to Database`);
   } catch (error) {
-    console.error(`❌ Error connecting to SQLite: ${error.message}`);
+    console.error(`❌ Error connecting to database via Prisma: ${error.message}`);
     process.exit(1);
   }
 };

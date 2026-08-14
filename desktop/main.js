@@ -129,8 +129,8 @@ app.whenReady().then(async () => {
     await startApiServer();
 
     // Now check the stored license key from the database
-    const { getSetting } = await import("../server/db/sqlite.js");
-    const storedKey = getSetting("license_key");
+    const { getSetting } = await import("../server/db/prismaClient.js");
+    const storedKey = await getSetting("license_key");
 
     if (storedKey && verifyLicense(machineId, storedKey)) {
       process.env.LICENSE_STATUS = "active";

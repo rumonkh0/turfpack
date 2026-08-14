@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { getDatabase, runTransaction } from "../db/sqlite.js";
+import prisma from "../db/prismaClient.js";
 
 const PAYMENT_METHOD_ACCOUNT = {
   bkash: "1001",
@@ -18,44 +18,48 @@ function cashAccount(method) {
   return PAYMENT_METHOD_ACCOUNT[method] || "1006";
 }
 
-function postJournalEntry({ entry_date, description, reference_type, reference_id, posting_event, created_by, lines }) {
-  const db = getDatabase();
-
+async function postJournalEntry({ entry_date, description, reference_type, reference_id, posting_event, created_by, lines }) {
   const totalDebit = lines.reduce((sum, l) => sum + l.debit, 0);
   const totalCredit = lines.reduce((sum, l) => sum + l.credit, 0);
   if (totalDebit !== totalCredit) {
     throw new Error(`Journal imbalance: debit=${totalDebit} credit=${totalCredit}`);
   }
 
-  return runTransaction(() => {
-    const existing = db
-      .prepare("SELECT id FROM journal_entries WHERE reference_type = ? AND reference_id = ? AND posting_event = ?")
-      .get(reference_type, reference_id, posting_event);
+  return await prisma.$transaction(async (tx) => {
+    const existing = await tx.journalEntry.findFirst({
+      where: {
+        reference_type,
+        reference_id,
+        posting_event,
+      }
+    });
 
     if (existing) return existing.id;
 
-    const entryId = crypto.randomUUID();
-    const now = new Date().toISOString();
+    const entry = await tx.journalEntry.create({
+      data: {
+        entry_date,
+        description,
+        reference_type,
+        reference_id,
+        posting_event,
+        created_by,
+        lines: {
+          create: lines.map(line => ({
+            account_code: line.account_code,
+            debit: line.debit,
+            credit: line.credit,
+            description: line.description || null,
+          }))
+        }
+      }
+    });
 
-    db.prepare(`
-      INSERT INTO journal_entries (id, entry_date, description, reference_type, reference_id, posting_event, created_by, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(entryId, entry_date, description, reference_type, reference_id, posting_event, created_by, now);
-
-    const insertLine = db.prepare(`
-      INSERT INTO journal_lines (id, journal_entry_id, account_code, debit, credit, description, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    for (const line of lines) {
-      insertLine.run(crypto.randomUUID(), entryId, line.account_code, line.debit, line.credit, line.description || null, now);
-    }
-
-    return entryId;
+    return entry.id;
   });
 }
 
-export function postBookingCreated(booking, createdBy) {
+export async function postBookingCreated(booking, createdBy) {
   const totalPoisha = toPoisha(booking.total_price);
   const method = booking.payment_method || "cash";
 
@@ -76,7 +80,7 @@ export function postBookingCreated(booking, createdBy) {
     );
   }
 
-  return postJournalEntry({
+  return await postJournalEntry({
     entry_date: booking.date || new Date().toISOString().slice(0, 10),
     description: `Booking created: ${booking.customer_name}`,
     reference_type: "booking",
@@ -87,11 +91,11 @@ export function postBookingCreated(booking, createdBy) {
   });
 }
 
-export function postBookingInstallment(booking, installment, paymentIndex, createdBy) {
+export async function postBookingInstallment(booking, installment, paymentIndex, createdBy) {
   const amountPoisha = toPoisha(installment.amount);
   const method = installment.method || "cash";
 
-  return postJournalEntry({
+  return await postJournalEntry({
     entry_date: installment.date || new Date().toISOString().slice(0, 10),
     description: `Installment #${paymentIndex + 1}: ${booking.customer_name}`,
     reference_type: "booking",
@@ -105,10 +109,10 @@ export function postBookingInstallment(booking, installment, paymentIndex, creat
   });
 }
 
-export function postBookingCancelled(booking, createdBy) {
+export async function postBookingCancelled(booking, createdBy) {
   const totalPoisha = toPoisha(booking.total_price);
 
-  return postJournalEntry({
+  return await postJournalEntry({
     entry_date: new Date().toISOString().slice(0, 10),
     description: `Booking cancelled: ${booking.customer_name}`,
     reference_type: "booking",
@@ -122,7 +126,7 @@ export function postBookingCancelled(booking, createdBy) {
   });
 }
 
-export function postBookingRefund(booking, createdBy) {
+export async function postBookingRefund(booking, createdBy) {
   const totalPoisha = toPoisha(booking.total_price);
   const paidPoisha = booking.payment_status === "paid"
     ? totalPoisha
@@ -142,7 +146,7 @@ export function postBookingRefund(booking, createdBy) {
     lines.push({ account_code: cashAccount(method), debit: 0, credit: paidPoisha, description: `Refund via ${method}` });
   }
 
-  return postJournalEntry({
+  return await postJournalEntry({
     entry_date: new Date().toISOString().slice(0, 10),
     description: `Booking refund: ${booking.customer_name}`,
     reference_type: "booking",
@@ -153,7 +157,7 @@ export function postBookingRefund(booking, createdBy) {
   });
 }
 
-export function postOrderCreated(order, costTotal, createdBy) {
+export async function postOrderCreated(order, costTotal, createdBy) {
   const totalPoisha = toPoisha(order.total_amount);
   const costPoisha = toPoisha(costTotal);
   const method = order.payment_method || "cash";
@@ -170,8 +174,8 @@ export function postOrderCreated(order, costTotal, createdBy) {
     );
   }
 
-  return postJournalEntry({
-    entry_date: new Date().toISOString().slice(0, 10),
+  return await postJournalEntry({
+    entry_date: (order.created_at ? new Date(order.created_at).toISOString().slice(0, 10) : null) || new Date().toISOString().slice(0, 10),
     description: `Order: ${order.customer_name || "Walk-in"}`,
     reference_type: "order",
     reference_id: order._id || order.id,
@@ -181,7 +185,7 @@ export function postOrderCreated(order, costTotal, createdBy) {
   });
 }
 
-export function postOrderCancelled(order, costTotal, createdBy) {
+export async function postOrderCancelled(order, costTotal, createdBy) {
   const totalPoisha = toPoisha(order.total_amount);
   const costPoisha = toPoisha(costTotal);
   const method = order.payment_method || "cash";
@@ -198,7 +202,7 @@ export function postOrderCancelled(order, costTotal, createdBy) {
     );
   }
 
-  return postJournalEntry({
+  return await postJournalEntry({
     entry_date: new Date().toISOString().slice(0, 10),
     description: `Order cancelled: ${order.customer_name || "Walk-in"}`,
     reference_type: "order",
@@ -209,12 +213,12 @@ export function postOrderCancelled(order, costTotal, createdBy) {
   });
 }
 
-export function postExpense(expense, createdBy) {
+export async function postExpense(expense, createdBy) {
   const amountPoisha = toPoisha(expense.amount);
   const method = expense.payment_method || "cash";
   const accountCode = expense.account_code || "6099";
 
-  return postJournalEntry({
+  return await postJournalEntry({
     entry_date: expense.entry_date || new Date().toISOString().slice(0, 10),
     description: `Expense: ${expense.description}`,
     reference_type: "expense",
@@ -228,12 +232,12 @@ export function postExpense(expense, createdBy) {
   });
 }
 
-export function postExpenseReversal(expense, createdBy) {
+export async function postExpenseReversal(expense, createdBy) {
   const amountPoisha = toPoisha(expense.amount);
   const method = expense.payment_method || "cash";
   const accountCode = expense.account_code || "6099";
 
-  return postJournalEntry({
+  return await postJournalEntry({
     entry_date: new Date().toISOString().slice(0, 10),
     description: `Expense reversed: ${expense.description}`,
     reference_type: "expense",
@@ -247,12 +251,12 @@ export function postExpenseReversal(expense, createdBy) {
   });
 }
 
-export function postIncome(income, createdBy) {
+export async function postIncome(income, createdBy) {
   const amountPoisha = toPoisha(income.amount);
   const method = income.payment_method || "cash";
   const accountCode = income.account_code || "4099";
 
-  return postJournalEntry({
+  return await postJournalEntry({
     entry_date: income.entry_date || new Date().toISOString().slice(0, 10),
     description: `Income: ${income.description}`,
     reference_type: "income",
@@ -266,12 +270,12 @@ export function postIncome(income, createdBy) {
   });
 }
 
-export function postIncomeReversal(income, createdBy) {
+export async function postIncomeReversal(income, createdBy) {
   const amountPoisha = toPoisha(income.amount);
   const method = income.payment_method || "cash";
   const accountCode = income.account_code || "4099";
 
-  return postJournalEntry({
+  return await postJournalEntry({
     entry_date: new Date().toISOString().slice(0, 10),
     description: `Income reversed: ${income.description}`,
     reference_type: "income",
@@ -285,10 +289,10 @@ export function postIncomeReversal(income, createdBy) {
   });
 }
 
-export function postPartnerPayout(payoutId, partner, amount, method, entryDate, createdBy) {
+export async function postPartnerPayout(payoutId, partner, amount, method, entryDate, createdBy) {
   const amountPoisha = toPoisha(amount);
 
-  return postJournalEntry({
+  return await postJournalEntry({
     entry_date: entryDate || new Date().toISOString().slice(0, 10),
     description: `Payout to ${partner.full_name}`,
     reference_type: "payout",

@@ -1,39 +1,38 @@
 import asyncHandler from "../middleware/async.js";
 import ErrorResponse from "../utils/errorResponse.js";
-import { findById, createRecord, updateById, listRecords, getDatabase } from "../db/sqlite.js";
+import prisma from "../db/prismaClient.js";
 import { getCurrentShares, reallocateShares, assignInitialShare, getShareHistory } from "../services/profitShareService.js";
 import { postPartnerPayout } from "../services/ledgerPostingService.js";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { Prisma } from '@prisma/client';
 
 export const getPartners = asyncHandler(async (req, res) => {
-  const db = getDatabase();
-  const partners = db.prepare(`
-    SELECT u.id as _id, u.id, u.full_name, u.email, u.role, u.status, u.created_at,
+  const partners = await prisma.$queryRaw`
+    SELECT u.id as _id, u.id, u.full_name, u.email, u.role, u.status, u.created_at as createdAt,
            psr.share_bp
     FROM users u
     LEFT JOIN profit_share_ratios psr ON psr.user_id = u.id AND psr.effective_to IS NULL
     WHERE u.role = 'partner'
     ORDER BY u.full_name
-  `).all();
+  `;
 
   const data = partners.map((p) => ({
     ...p,
-    createdAt: p.created_at,
-    share_bp: p.share_bp || 0,
-    share_pct: (p.share_bp || 0) / 100,
+    share_bp: Number(p.share_bp || 0),
+    share_pct: Number(p.share_bp || 0) / 100,
   }));
 
   res.status(200).json({ success: true, count: data.length, data });
 });
 
 export const getPartner = asyncHandler(async (req, res, next) => {
-  const user = findById("users", req.params.id);
+  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!user || user.role !== "partner") {
     return next(new ErrorResponse("Partner not found", 404));
   }
 
-  const shares = getCurrentShares();
+  const shares = await getCurrentShares();
   const share = shares.find((s) => s.user_id === req.params.id);
 
   res.status(200).json({
@@ -53,19 +52,21 @@ export const createPartner = asyncHandler(async (req, res, next) => {
   }
 
   const hashedPassword = bcrypt.hashSync(password, 10);
-  const partner = createRecord("users", {
-    full_name,
-    email,
-    password: hashedPassword,
-    role: "partner",
-    status: "active",
+  const partner = await prisma.user.create({
+    data: {
+      full_name,
+      email,
+      password: hashedPassword,
+      role: "partner",
+      status: "active",
+    }
   });
 
-  const currentShares = getCurrentShares();
+  const currentShares = await getCurrentShares();
   let shareInfo = { share_bp: 0, share_pct: 0 };
 
   if (currentShares.length === 0) {
-    assignInitialShare(partner._id);
+    await assignInitialShare(partner.id);
     shareInfo = { share_bp: 10000, share_pct: 100 };
   }
 
@@ -76,7 +77,7 @@ export const createPartner = asyncHandler(async (req, res, next) => {
 });
 
 export const updatePartner = asyncHandler(async (req, res, next) => {
-  const user = findById("users", req.params.id);
+  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!user || user.role !== "partner") {
     return next(new ErrorResponse("Partner not found", 404));
   }
@@ -87,9 +88,12 @@ export const updatePartner = asyncHandler(async (req, res, next) => {
   if (req.body.status) updateData.status = req.body.status;
   if (req.body.password) updateData.password = bcrypt.hashSync(req.body.password, 10);
 
-  const updated = updateById("users", req.params.id, updateData);
+  const updated = await prisma.user.update({
+    where: { id: req.params.id },
+    data: updateData
+  });
 
-  const shares = getCurrentShares();
+  const shares = await getCurrentShares();
   const share = shares.find((s) => s.user_id === req.params.id);
 
   res.status(200).json({
@@ -109,7 +113,7 @@ export const reallocate = asyncHandler(async (req, res, next) => {
   }
 
   try {
-    const result = reallocateShares(shares, req.user._id, reason);
+    const result = await reallocateShares(shares, req.user.id, reason);
     res.status(200).json({ success: true, data: result });
   } catch (err) {
     return next(new ErrorResponse(err.message, 400));
@@ -117,12 +121,12 @@ export const reallocate = asyncHandler(async (req, res, next) => {
 });
 
 export const sharesHistory = asyncHandler(async (req, res) => {
-  const history = getShareHistory(parseInt(req.query.limit, 10) || 20);
+  const limit = parseInt(req.query.limit, 10) || 20;
+  const history = await getShareHistory(limit);
   res.status(200).json({ success: true, count: history.length, data: history });
 });
 
 export const getPayouts = asyncHandler(async (req, res) => {
-  const db = getDatabase();
   const where = ["je.reference_type = 'payout'"];
   const params = [];
 
@@ -130,9 +134,13 @@ export const getPayouts = asyncHandler(async (req, res) => {
   if (req.query.from) { where.push("je.entry_date >= ?"); params.push(req.query.from); }
   if (req.query.to) { where.push("je.entry_date <= ?"); params.push(req.query.to); }
 
-  const rows = db.prepare(`
+  const limit = parseInt(req.query.limit, 10) || 50;
+  params.push(limit);
+
+  // Prisma needs parameters to be passed properly. But $queryRawUnsafe allows it easily.
+  const queryStr = `
     SELECT je.id as _id, je.id, je.reference_id, je.entry_date, je.description, je.created_by as user_id,
-           u.full_name as partner_name, je.created_at,
+           u.full_name as partner_name, je.created_at as createdAt,
            (SELECT jl.debit FROM journal_lines jl WHERE jl.journal_entry_id = je.id AND jl.account_code = '3100') as amount,
            (SELECT jl.account_code FROM journal_lines jl WHERE jl.journal_entry_id = je.id AND jl.account_code != '3100' LIMIT 1) as payment_account
     FROM journal_entries je
@@ -140,12 +148,13 @@ export const getPayouts = asyncHandler(async (req, res) => {
     WHERE ${where.join(" AND ")}
     ORDER BY je.created_at DESC
     LIMIT ?
-  `).all(...params, parseInt(req.query.limit, 10) || 50);
+  `;
+  
+  const rows = await prisma.$queryRawUnsafe(queryStr, ...params);
 
   const data = rows.map((r) => ({
     ...r,
-    createdAt: r.created_at,
-    amount: r.amount || 0,
+    amount: Number(r.amount || 0),
   }));
 
   res.status(200).json({ success: true, count: data.length, data });
@@ -157,7 +166,7 @@ export const createPayout = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse("user_id, amount, and payment_method are required", 400));
   }
 
-  const partner = findById("users", user_id);
+  const partner = await prisma.user.findUnique({ where: { id: user_id } });
   if (!partner || partner.role !== "partner") {
     return next(new ErrorResponse("Partner not found", 404));
   }
@@ -165,7 +174,7 @@ export const createPayout = asyncHandler(async (req, res, next) => {
   const payoutId = crypto.randomUUID();
   const entryDate = new Date().toISOString().slice(0, 10);
 
-  postPartnerPayout(payoutId, partner, amount, payment_method, entryDate, req.user._id);
+  await postPartnerPayout(payoutId, partner, amount, payment_method, entryDate, req.user.id);
 
   res.status(201).json({
     success: true,

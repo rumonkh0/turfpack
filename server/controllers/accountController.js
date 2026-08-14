@@ -1,26 +1,32 @@
 import asyncHandler from "../middleware/async.js";
 import ErrorResponse from "../utils/errorResponse.js";
-import { listRecords, findById, createRecord, updateById } from "../db/sqlite.js";
+import prisma from "../db/prismaClient.js";
 
 export const getAccounts = asyncHandler(async (req, res) => {
-  const where = [];
-  const params = [];
+  const limit = parseInt(req.query.limit, 10) || 500;
+  
+  let orderBy = { code: "asc" };
+  if (req.query.sort) {
+    const isDesc = req.query.sort.startsWith("-");
+    const rawField = req.query.sort.replace("-", "");
+    const field = ["createdAt", "created_date", "created_at"].includes(rawField) ? "created_at" : rawField;
+    orderBy = { [field]: isDesc ? "desc" : "asc" };
+  }
 
+  const where = {};
   if (req.query.type) {
-    where.push("type = ?");
-    params.push(req.query.type);
+    where.type = req.query.type;
   }
   if (req.query.status) {
-    where.push("status = ?");
-    params.push(req.query.status);
+    where.status = req.query.status;
   }
 
-  const accounts = listRecords("accounts", {
-    sort: req.query.sort || "code",
-    limit: parseInt(req.query.limit, 10) || 500,
-    where: where.join(" AND "),
-    params,
+  const accounts = await prisma.account.findMany({
+    where,
+    orderBy,
+    take: limit,
   });
+
   res.status(200).json({ success: true, count: accounts.length, data: accounts });
 });
 
@@ -39,15 +45,23 @@ export const createAccount = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Code ${code} must start with ${typeRanges[type]} for type ${type}`, 400));
   }
 
-  const account = createRecord("accounts", {
-    code, name, type, normal_side, description, is_system: 0, status: "active",
+  const account = await prisma.account.create({
+    data: {
+      code,
+      name,
+      type,
+      normal_side,
+      description,
+      is_system: 0,
+      status: "active",
+    }
   });
 
   res.status(201).json({ success: true, data: account });
 });
 
 export const updateAccount = asyncHandler(async (req, res, next) => {
-  const account = findById("accounts", req.params.id);
+  const account = await prisma.account.findUnique({ where: { id: req.params.id } });
   if (!account) {
     return next(new ErrorResponse("Account not found", 404));
   }
@@ -61,6 +75,10 @@ export const updateAccount = asyncHandler(async (req, res, next) => {
     }
   }
 
-  const updated = updateById("accounts", req.params.id, req.body);
+  const updated = await prisma.account.update({
+    where: { id: req.params.id },
+    data: req.body,
+  });
+
   res.status(200).json({ success: true, data: updated });
 });

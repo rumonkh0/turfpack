@@ -1,0 +1,250 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String   @id @default(uuid())
+  full_name            String
+  email                String   @unique
+  password             String
+  role                 String   @default("staff")
+  reset_password_token String?
+  reset_password_expire String?
+  image_url            String?  @db.Text
+  image_public_id      String?
+  status               String   @default("active")
+  created_at           DateTime @default(now())
+
+  @@map("users")
+}
+
+model Turf {
+  id                String   @id @default(uuid())
+  name              String
+  type              String
+  size              String?
+  location          String?
+  description       String?  @db.Text
+  image_url         String?  @db.Text
+  image_public_id   String?
+  status            String   @default("active")
+  base_price        Float    @default(0)
+  peak_price        Float    @default(0)
+  night_price       Float    @default(0)
+  opening_hour      Int      @default(6)
+  closing_hour      Int      @default(23)
+  peak_hours_start  Int      @default(17)
+  peak_hours_end    Int      @default(21)
+  weekend_multiplier Float   @default(1.2)
+  amenities         String?  @db.Text // JSON string
+  created_at        DateTime @default(now())
+
+  @@map("turfs")
+}
+
+model Booking {
+  id               String   @id @default(uuid())
+  turf_id          String
+  turf_name        String?
+  customer_name    String
+  customer_phone   String
+  customer_email   String?
+  date             String
+  start_hour       Int
+  end_hour         Int
+  duration_hours   Float?
+  total_price      Float
+  paid_amount      Float    @default(0)
+  payment_history  String?  @db.Text // JSON string
+  status           String   @default("confirmed")
+  payment_status   String   @default("unpaid")
+  payment_method   String   @default("bkash")
+  notes            String?  @db.Text
+  txn_id           String?
+  created_at       DateTime @default(now())
+
+  @@index([turf_id, date, start_hour, end_hour])
+  @@map("bookings")
+}
+
+model Payment {
+  id              String   @id @default(uuid())
+  booking_id      String?
+  amount          Float
+  status          String   @default("completed")
+  method          String
+  transaction_id  String?
+  customer_name   String?
+  customer_phone  String?
+  created_at      DateTime @default(now())
+
+  @@map("payments")
+}
+
+model Product {
+  id              String   @id @default(uuid())
+  name            String
+  category        String
+  price           Float
+  cost_price      Float    @default(0)
+  stock           Int      @default(0)
+  unit            String   @default("pcs")
+  sku             String?
+  status          String   @default("active")
+  image_url       String?  @db.Text
+  image_public_id String?
+  description     String?  @db.Text
+  low_stock_alert Int      @default(5)
+  created_at      DateTime @default(now())
+
+  @@map("products")
+}
+
+model Order {
+  id              String   @id @default(uuid())
+  customer_name   String?
+  customer_phone  String?
+  items           String?  @db.Text // JSON string
+  total_amount    Float
+  status          String   @default("confirmed")
+  payment_method  String   @default("cash")
+  payment_status  String   @default("paid")
+  notes           String?  @db.Text
+  created_at      DateTime @default(now())
+
+  @@map("orders")
+}
+
+model Tournament {
+  id          String   @id @default(uuid())
+  name        String
+  turf_id     String
+  turf_name   String?
+  start_date  String?
+  end_date    String?
+  max_teams   Int      @default(8)
+  entry_fee   Float    @default(0)
+  prize_pool  Float    @default(0)
+  status      String   @default("upcoming")
+  format      String   @default("knockout")
+  description String?  @db.Text
+  rules       String?  @db.Text
+  teams       String?  @db.Text // JSON string
+  created_at  DateTime @default(now())
+
+  @@map("tournaments")
+}
+
+model Account {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  type        String
+  normal_side String
+  description String?  @db.Text
+  is_system   Int      @default(1)
+  status      String   @default("active")
+  created_at  DateTime @default(now())
+
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id             String        @id @default(uuid())
+  entry_date     String
+  description    String?       @db.Text
+  reference_type String?
+  reference_id   String?
+  posting_event  String?
+  created_by     String?
+  created_at     DateTime      @default(now())
+  lines          JournalLine[]
+
+  @@index([reference_type, reference_id, posting_event])
+  @@index([entry_date])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id               String       @id @default(uuid())
+  journal_entry_id String
+  account_code     String
+  debit            Int          @default(0)
+  credit           Int          @default(0)
+  description      String?      @db.Text
+  created_at       DateTime     @default(now())
+  journal_entry    JournalEntry @relation(fields: [journal_entry_id], references: [id])
+
+  @@index([journal_entry_id])
+  @@index([account_code])
+  @@map("journal_lines")
+}
+
+model ProfitShareRatio {
+  id             String   @id @default(uuid())
+  user_id        String
+  share_bp       Int
+  effective_from String
+  effective_to   String?
+  version        Int
+  created_at     DateTime @default(now())
+
+  @@index([user_id])
+  @@index([version])
+  @@map("profit_share_ratios")
+}
+
+model ProfitShareChangeLog {
+  id         String   @id @default(uuid())
+  version    Int
+  changed_by String
+  reason     String?  @db.Text
+  snapshot   String?  @db.Text // JSON string
+  created_at DateTime @default(now())
+
+  @@map("profit_share_change_log")
+}
+
+model Expense {
+  id             String   @id @default(uuid())
+  description    String   @db.Text
+  amount         Float
+  account_code   String   @default("6099")
+  payment_method String   @default("cash")
+  payment_status String   @default("paid")
+  entry_date     String
+  notes          String?  @db.Text
+  created_by     String?
+  created_at     DateTime @default(now())
+
+  @@index([entry_date])
+  @@map("expenses")
+}
+
+model Income {
+  id             String   @id @default(uuid())
+  description    String   @db.Text
+  amount         Float
+  account_code   String   @default("4099")
+  payment_method String   @default("cash")
+  payment_status String   @default("paid")
+  entry_date     String
+  notes          String?  @db.Text
+  created_by     String?
+  created_at     DateTime @default(now())
+
+  @@index([entry_date])
+  @@map("incomes")
+}
+
+model AppSetting {
+  key   String @id
+  value String @db.Text
+
+  @@map("app_settings")
+}

@@ -2,14 +2,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import asyncHandler from "../middleware/async.js";
 import ErrorResponse from "../utils/errorResponse.js";
-import {
-  createRecord,
-  findOne,
-  findById,
-  getSetting,
-  setSetting,
-  updateById,
-} from "../db/sqlite.js";
+import prisma, { getSetting, setSetting } from "../db/prismaClient.js";
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -17,18 +10,20 @@ import {
 export const register = asyncHandler(async (req, res, next) => {
   const { full_name, email, password, role } = req.body;
 
-  const existingUser = findOne("users", "email = ?", [email]);
+  const existingUser = await prisma.user.findFirst({ where: { email } });
   if (existingUser) {
     return next(new ErrorResponse("User already exists", 400));
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const user = createRecord("users", {
-    full_name,
-    email,
-    password: hashedPassword,
-    role,
+  const user = await prisma.user.create({
+    data: {
+      full_name,
+      email,
+      password: hashedPassword,
+      role,
+    }
   });
 
   sendTokenResponse(user, 201, res);
@@ -44,9 +39,7 @@ export const login = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse("Please provide an email and password", 400));
   }
 
-  const user = findOne("users", "email = ?", [email], {
-    includePassword: true,
-  });
+  const user = await prisma.user.findFirst({ where: { email } });
 
   if (!user) {
     return next(new ErrorResponse("Invalid credentials", 401));
@@ -78,51 +71,54 @@ export const desktopAutoLogin = asyncHandler(async (req, res, next) => {
   const configuredPassword = process.env.DEFAULT_ADMIN_PASSWORD || "00000000";
 
   let user = null;
-  const desktopUserId = getSetting("desktop_user_id");
+  const desktopUserId = await getSetting("desktop_user_id");
 
   const ensureAdminUser = async (candidate) => {
     if (!candidate) return null;
 
-    if (candidate.role !== "admin") {
-      candidate = updateById("users", candidate.id, { role: "admin" });
-    }
-
-    if (candidate.status !== "active") {
-      candidate = updateById("users", candidate.id, { status: "active" });
+    if (candidate.role !== "admin" || candidate.status !== "active") {
+      candidate = await prisma.user.update({
+        where: { id: candidate.id },
+        data: { role: "admin", status: "active" }
+      });
     }
 
     return candidate;
   };
 
-  // Prefer the configured desktop admin account so old seeded emails don't leak back in.
+  // Prefer the configured desktop admin account
   user = await ensureAdminUser(
-    findOne("users", "email = ?", [configuredEmail]),
+    await prisma.user.findFirst({ where: { email: configuredEmail } })
   );
 
-  // If the configured email is missing, fall back to the persisted desktop user only if it is admin.
+  // Fallback to persisted desktop user
   if (!user && desktopUserId) {
-    user = await ensureAdminUser(findById("users", desktopUserId));
+    user = await ensureAdminUser(
+      await prisma.user.findUnique({ where: { id: desktopUserId } })
+    );
   }
 
-  // Last chance fallback to the legacy admin seed email.
+  // Last chance fallback
   if (!user) {
     user = await ensureAdminUser(
-      findOne("users", "email = ?", ["admin@admin.com"]),
+      await prisma.user.findFirst({ where: { email: "admin@admin.com" } })
     );
   }
 
   if (!user) {
     const hashedPassword = await bcrypt.hash(configuredPassword, 10);
-    user = createRecord("users", {
-      full_name: configuredName,
-      email: configuredEmail,
-      password: hashedPassword,
-      role: "admin",
-      status: "active",
+    user = await prisma.user.create({
+      data: {
+        full_name: configuredName,
+        email: configuredEmail,
+        password: hashedPassword,
+        role: "admin",
+        status: "active",
+      }
     });
   }
 
-  setSetting("desktop_user_id", user.id);
+  await setSetting("desktop_user_id", user.id);
   sendTokenResponse(user, 200, res);
 });
 
@@ -145,7 +141,7 @@ export const logout = asyncHandler(async (req, res, next) => {
 // @route   GET /api/auth/me
 // @access  Private
 export const getMe = asyncHandler(async (req, res, next) => {
-  const user = findById("users", req.user.id);
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   res.status(200).json({ success: true, data: user });
 });
 

@@ -1,13 +1,7 @@
 import asyncHandler from "../middleware/async.js";
 import ErrorResponse from "../utils/errorResponse.js";
 import { deleteFromCloudinary } from "../utils/cloudinaryHelper.js";
-import {
-  listRecords,
-  findById,
-  createRecord,
-  updateById,
-  deleteById,
-} from "../db/sqlite.js";
+import prisma from "../db/prismaClient.js";
 
 // @desc    Get all turfs
 // @route   GET /api/turfs
@@ -17,40 +11,52 @@ export const getTurfs = asyncHandler(async (req, res, next) => {
   const removeFields = ["select", "sort", "page", "limit"];
   removeFields.forEach((param) => delete reqQuery[param]);
 
-  const filters = Object.entries(reqQuery).filter(
-    ([, value]) => value !== undefined && value !== "",
-  );
-  const where = filters.map(([key]) => `${key} = ?`).join(" AND ");
-  const params = filters.map(([, value]) => value);
+  const limit = parseInt(req.query.limit, 10) || 500;
+  
+  // Sort
+  let orderBy = { created_at: "desc" };
+  if (req.query.sort) {
+    const isDesc = req.query.sort.startsWith("-");
+    const rawField = req.query.sort.replace("-", "");
+    const field = ["createdAt", "created_date", "created_at"].includes(rawField) ? "created_at" : rawField;
+    orderBy = { [field]: isDesc ? "desc" : "asc" };
+  }
 
-  const turfs = listRecords("turfs", {
-    sort: req.query.sort || "-createdAt",
-    limit: parseInt(req.query.limit, 10) || 500,
+  // Filter
+  const where = {};
+  for (const [key, value] of Object.entries(reqQuery)) {
+    if (value !== undefined && value !== "") {
+      where[key] = value;
+    }
+  }
+
+  // Select
+  let select = undefined;
+  if (req.query.select) {
+    select = {};
+    req.query.select.split(",").forEach((field) => {
+      const cleanField = field.trim();
+      select[cleanField] = true;
+    });
+  }
+
+  const turfs = await prisma.turf.findMany({
     where,
-    params,
+    orderBy,
+    take: limit,
+    ...(select ? { select } : {})
   });
-
-  const selectedTurfs = req.query.select
-    ? turfs.map((turf) => {
-        const picked = {};
-        req.query.select.split(",").forEach((field) => {
-          const cleanField = field.trim();
-          if (cleanField in turf) picked[cleanField] = turf[cleanField];
-        });
-        return picked;
-      })
-    : turfs;
 
   res
     .status(200)
-    .json({ success: true, count: selectedTurfs.length, data: selectedTurfs });
+    .json({ success: true, count: turfs.length, data: turfs });
 });
 
 // @desc    Get single turf
 // @route   GET /api/turfs/:id
 // @access  Public
 export const getTurf = asyncHandler(async (req, res, next) => {
-  const turf = findById("turfs", req.params.id);
+  const turf = await prisma.turf.findUnique({ where: { id: req.params.id } });
 
   if (!turf) {
     return next(
@@ -65,7 +71,7 @@ export const getTurf = asyncHandler(async (req, res, next) => {
 // @route   POST /api/turfs
 // @access  Private/Admin
 export const createTurf = asyncHandler(async (req, res, next) => {
-  const turf = createRecord("turfs", req.body);
+  const turf = await prisma.turf.create({ data: req.body });
   res.status(201).json({ success: true, data: turf });
 });
 
@@ -73,7 +79,7 @@ export const createTurf = asyncHandler(async (req, res, next) => {
 // @route   PUT /api/turfs/:id
 // @access  Private/Admin
 export const updateTurf = asyncHandler(async (req, res, next) => {
-  let turf = findById("turfs", req.params.id);
+  let turf = await prisma.turf.findUnique({ where: { id: req.params.id } });
 
   if (!turf) {
     return next(
@@ -90,7 +96,10 @@ export const updateTurf = asyncHandler(async (req, res, next) => {
     await deleteFromCloudinary(turf.image_public_id);
   }
 
-  turf = updateById("turfs", req.params.id, req.body);
+  turf = await prisma.turf.update({
+    where: { id: req.params.id },
+    data: req.body,
+  });
 
   res.status(200).json({ success: true, data: turf });
 });
@@ -99,7 +108,7 @@ export const updateTurf = asyncHandler(async (req, res, next) => {
 // @route   DELETE /api/turfs/:id
 // @access  Private/Admin
 export const deleteTurf = asyncHandler(async (req, res, next) => {
-  const turf = findById("turfs", req.params.id);
+  const turf = await prisma.turf.findUnique({ where: { id: req.params.id } });
 
   if (!turf) {
     return next(
@@ -112,7 +121,7 @@ export const deleteTurf = asyncHandler(async (req, res, next) => {
     await deleteFromCloudinary(turf.image_public_id);
   }
 
-  deleteById("turfs", req.params.id);
+  await prisma.turf.delete({ where: { id: req.params.id } });
 
   res.status(200).json({ success: true, data: {} });
 });

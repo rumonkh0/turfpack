@@ -17,6 +17,7 @@ import {
   TrendingDown,
   TrendingUp,
   Landmark,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -41,7 +42,7 @@ const adminOnlyNavItems = [
 
 export default function Layout({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, isAuthenticated, isLoadingAuth } = useAuth();
+  const { user, isAuthenticated, isLoadingAuth, logout } = useAuth();
   const navigate = useNavigate();
   const isDesktopApp =
     typeof navigator !== "undefined" &&
@@ -50,6 +51,8 @@ export default function Layout({ children, currentPageName }) {
   let visibleNavItems = [...standardNavItems];
   if (user?.role === "admin") {
     visibleNavItems = [...visibleNavItems, ...adminOnlyNavItems];
+  } else if (user?.role === "partner") {
+    visibleNavItems = [...visibleNavItems, { name: "Reports", icon: FileText, page: "Reports" }];
   }
 
   if (isDesktopApp) {
@@ -77,9 +80,10 @@ export default function Layout({ children, currentPageName }) {
   }
 
   const isAdmin = user?.role === "admin";
-  const isAdminOnlyPage = adminOnlyNavItems.some(item => item.page === currentPageName);
+  const isPartner = user?.role === "partner";
+  const isAllowedForUser = visibleNavItems.some(item => item.page === currentPageName) || currentPageName === "ProductsDashboard" || currentPageName === "Dashboard";
 
-  if (!isAdmin && isAdminOnlyPage && !isLoadingAuth) {
+  if (!isAdmin && !isAllowedForUser && !isLoadingAuth) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
         <div className="text-center max-w-sm">
@@ -175,29 +179,45 @@ export default function Layout({ children, currentPageName }) {
 
         <div className="p-3 border-t border-gray-100">
           {user && (
-            <button
-              type="button"
-              onClick={openAdminDetails}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-emerald-50 transition-all text-left"
-              title="Edit admin details"
-            >
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-emerald-100 flex items-center justify-center shrink-0">
-                {user.image_url ? (
-                  <img
-                    src={user.image_url}
-                    alt={user.full_name || "Admin"}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-emerald-700 text-xs font-semibold">
-                    {(user.full_name || "A")[0]?.toUpperCase() || "A"}
-                  </span>
-                )}
-              </div>
-              <span className="text-sm font-medium text-gray-700 truncate">
-                {user.full_name || "Admin"}
-              </span>
-            </button>
+            <div className="flex items-center justify-between gap-1">
+              <button
+                type="button"
+                onClick={openAdminDetails}
+                className="flex-1 flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-emerald-50 transition-all text-left min-w-0"
+                title="Edit user details"
+              >
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-emerald-100 flex items-center justify-center shrink-0">
+                  {user.image_url ? (
+                    <img
+                      src={user.image_url}
+                      alt={user.full_name || "User"}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-emerald-700 text-xs font-semibold">
+                      {(user.full_name || "U")[0]?.toUpperCase() || "U"}
+                    </span>
+                  )}
+                </div>
+                <div className="truncate">
+                  <p className="text-sm font-medium text-gray-700 truncate">
+                    {user.full_name || "User"}
+                  </p>
+                  <p className="text-[10px] text-gray-400 capitalize truncate">
+                    {user.role || "Staff"}
+                  </p>
+                </div>
+              </button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => logout()}
+                className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                title="Log out"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
           )}
         </div>
       </aside>
@@ -219,12 +239,16 @@ export default function Layout({ children, currentPageName }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Notification button commented out as requested
-            <Button variant="ghost" size="icon" className="relative text-gray-400 hover:text-gray-600">
-              <Bell className="w-[18px] h-[18px]" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => logout()}
+              className="text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 flex items-center gap-1.5 px-2.5 py-1.5 h-8"
+              title="Log out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
-            */}
             <div className="w-8 h-8 rounded-full overflow-hidden bg-emerald-50 flex items-center justify-center cursor-default">
               <div className="w-6 h-6 rounded-full overflow-hidden bg-emerald-50 flex items-center justify-center">
                 {user?.image_url ? (

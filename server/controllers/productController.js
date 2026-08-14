@@ -1,22 +1,26 @@
 import asyncHandler from "../middleware/async.js";
 import ErrorResponse from "../utils/errorResponse.js";
 import { deleteFromCloudinary } from "../utils/cloudinaryHelper.js";
-import {
-  listRecords,
-  createRecord,
-  findById,
-  updateById,
-  deleteById,
-} from "../db/sqlite.js";
+import prisma from "../db/prismaClient.js";
 
 // @desc    Get all products
 // @route   GET /api/products
 // @access  Private
 export const getProducts = asyncHandler(async (req, res, next) => {
-  const products = listRecords("products", {
-    sort: req.query.sort || "-createdAt",
-    limit: parseInt(req.query.limit, 10) || 500,
+  const limit = parseInt(req.query.limit, 10) || 500;
+  let orderBy = { created_at: "desc" };
+  if (req.query.sort) {
+    const isDesc = req.query.sort.startsWith("-");
+    const rawField = req.query.sort.replace("-", "");
+    const field = ["createdAt", "created_date", "created_at"].includes(rawField) ? "created_at" : rawField;
+    orderBy = { [field]: isDesc ? "desc" : "asc" };
+  }
+
+  const products = await prisma.product.findMany({
+    orderBy,
+    take: limit,
   });
+
   res
     .status(200)
     .json({ success: true, count: products.length, data: products });
@@ -26,7 +30,7 @@ export const getProducts = asyncHandler(async (req, res, next) => {
 // @route   POST /api/products
 // @access  Private/Admin
 export const createProduct = asyncHandler(async (req, res, next) => {
-  const product = createRecord("products", req.body);
+  const product = await prisma.product.create({ data: req.body });
   res.status(201).json({ success: true, data: product });
 });
 
@@ -34,7 +38,7 @@ export const createProduct = asyncHandler(async (req, res, next) => {
 // @route   PUT /api/products/:id
 // @access  Private/Admin
 export const updateProduct = asyncHandler(async (req, res, next) => {
-  let product = findById("products", req.params.id);
+  let product = await prisma.product.findUnique({ where: { id: req.params.id } });
 
   if (!product) {
     return next(
@@ -51,7 +55,10 @@ export const updateProduct = asyncHandler(async (req, res, next) => {
     await deleteFromCloudinary(product.image_public_id);
   }
 
-  product = updateById("products", req.params.id, req.body);
+  product = await prisma.product.update({
+    where: { id: req.params.id },
+    data: req.body,
+  });
 
   res.status(200).json({ success: true, data: product });
 });
@@ -60,7 +67,7 @@ export const updateProduct = asyncHandler(async (req, res, next) => {
 // @route   DELETE /api/products/:id
 // @access  Private/Admin
 export const deleteProduct = asyncHandler(async (req, res, next) => {
-  const product = findById("products", req.params.id);
+  const product = await prisma.product.findUnique({ where: { id: req.params.id } });
 
   if (!product) {
     return next(
@@ -73,7 +80,7 @@ export const deleteProduct = asyncHandler(async (req, res, next) => {
     await deleteFromCloudinary(product.image_public_id);
   }
 
-  deleteById("products", req.params.id);
+  await prisma.product.delete({ where: { id: req.params.id } });
 
   res.status(200).json({ success: true, data: {} });
 });

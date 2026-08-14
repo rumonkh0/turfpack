@@ -1,13 +1,6 @@
 import asyncHandler from "../middleware/async.js";
 import ErrorResponse from "../utils/errorResponse.js";
-import {
-  listRecords,
-  findById,
-  findOne,
-  createRecord,
-  updateById,
-  deleteById,
-} from "../db/sqlite.js";
+import prisma from "../db/prismaClient.js";
 import {
   postBookingCreated,
   postBookingInstallment,
@@ -19,10 +12,20 @@ import {
 // @route   GET /api/bookings
 // @access  Private/Admin
 export const getBookings = asyncHandler(async (req, res, next) => {
-  const bookings = listRecords("bookings", {
-    sort: req.query.sort || "-createdAt",
-    limit: parseInt(req.query.limit, 10) || 500,
+  const limit = parseInt(req.query.limit, 10) || 500;
+  let orderBy = { created_at: "desc" };
+  if (req.query.sort) {
+    const isDesc = req.query.sort.startsWith("-");
+    const rawField = req.query.sort.replace("-", "");
+    const field = ["createdAt", "created_date", "created_at"].includes(rawField) ? "created_at" : rawField;
+    orderBy = { [field]: isDesc ? "desc" : "asc" };
+  }
+
+  const bookings = await prisma.booking.findMany({
+    orderBy,
+    take: limit,
   });
+
   res
     .status(200)
     .json({ success: true, count: bookings.length, data: bookings });
@@ -32,7 +35,7 @@ export const getBookings = asyncHandler(async (req, res, next) => {
 // @route   GET /api/bookings/:id
 // @access  Private
 export const getBooking = asyncHandler(async (req, res, next) => {
-  const booking = findById("bookings", req.params.id);
+  const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
   if (!booking) {
     return next(
       new ErrorResponse(`Booking not found with id of ${req.params.id}`, 404),
@@ -45,7 +48,7 @@ export const getBooking = asyncHandler(async (req, res, next) => {
 // @route   POST /api/bookings
 // @access  Private
 export const createBooking = asyncHandler(async (req, res, next) => {
-  const turf = findById("turfs", req.body.turf_id);
+  const turf = await prisma.turf.findUnique({ where: { id: req.body.turf_id } });
   if (!turf) {
     return next(
       new ErrorResponse(`Turf not found with id of ${req.body.turf_id}`, 404),
@@ -53,29 +56,26 @@ export const createBooking = asyncHandler(async (req, res, next) => {
   }
 
   // Check for conflicts
-  const conflict = findOne(
-    "bookings",
-    `turf_id = ?
-      AND date = ?
-      AND status != 'cancelled'
-      AND start_hour < ?
-      AND end_hour > ?`,
-    [
-      req.body.turf_id,
-      req.body.date,
-      req.body.end_hour || req.body.start_hour + 1,
-      req.body.start_hour,
-    ],
-  );
+  const conflict = await prisma.booking.findFirst({
+    where: {
+      turf_id: req.body.turf_id,
+      date: req.body.date,
+      status: { not: 'cancelled' },
+      start_hour: { lt: req.body.end_hour || req.body.start_hour + 1 },
+      end_hour: { gt: req.body.start_hour },
+    }
+  });
 
   if (conflict) {
     return next(new ErrorResponse("Time slot already booked", 400));
   }
 
-  const booking = createRecord("bookings", {
-    ...req.body,
-    turf_id: req.body.turf_id,
-    turf_name: turf.name,
+  const booking = await prisma.booking.create({
+    data: {
+      ...req.body,
+      turf_id: req.body.turf_id,
+      turf_name: turf.name,
+    }
   });
 
   // Create payment record if status is paid or partial
@@ -85,20 +85,22 @@ export const createBooking = asyncHandler(async (req, res, next) => {
         ? Number(req.body.paid_amount || 0)
         : Number(req.body.total_price || 0);
 
-    createRecord("payments", {
-      booking_id: booking.id,
-      amount: paymentAmount,
-      status: "completed",
-      method: req.body.payment_method || "bkash",
-      transaction_id: req.body.txn_id,
-      customer_name: req.body.customer_name,
-      customer_phone: req.body.customer_phone,
+    await prisma.payment.create({
+      data: {
+        booking_id: booking.id,
+        amount: paymentAmount,
+        status: "completed",
+        method: req.body.payment_method || "bkash",
+        transaction_id: req.body.txn_id,
+        customer_name: req.body.customer_name,
+        customer_phone: req.body.customer_phone,
+      }
     });
   }
 
   // Post to ledger
   try {
-    postBookingCreated(booking, req.user?._id || null);
+    await postBookingCreated(booking, req.user?._id || null);
   } catch (err) {
     console.error("⚠️ Ledger posting failed for booking creation:", err.message);
   }
@@ -110,7 +112,7 @@ export const createBooking = asyncHandler(async (req, res, next) => {
 // @route   PUT /api/bookings/:id
 // @access  Private
 export const updateBooking = asyncHandler(async (req, res, next) => {
-  let booking = findById("bookings", req.params.id);
+  let booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
 
   if (!booking) {
     return next(
@@ -122,24 +124,27 @@ export const updateBooking = asyncHandler(async (req, res, next) => {
   const oldPaymentStatus = booking.payment_status;
   const oldPaymentHistoryLength = (booking.payment_history || []).length;
 
-  booking = updateById("bookings", req.params.id, req.body);
+  booking = await prisma.booking.update({
+    where: { id: req.params.id },
+    data: req.body,
+  });
 
   // Ledger hooks
   const userId = req.user?._id || null;
   try {
     // Cancellation of unpaid booking
     if (req.body.status === "cancelled" && oldStatus !== "cancelled" && oldPaymentStatus === "unpaid") {
-      postBookingCancelled(booking, userId);
+      await postBookingCancelled(booking, userId);
     }
     // Refund
     if (req.body.payment_status === "refunded" && oldPaymentStatus !== "refunded") {
-      postBookingRefund(booking, userId);
+      await postBookingRefund(booking, userId);
     }
     // Installment payment added
     const newHistory = booking.payment_history || [];
     if (newHistory.length > oldPaymentHistoryLength) {
       for (let i = oldPaymentHistoryLength; i < newHistory.length; i++) {
-        postBookingInstallment(booking, newHistory[i], i, userId);
+        await postBookingInstallment(booking, newHistory[i], i, userId);
       }
     }
   } catch (err) {
@@ -153,7 +158,7 @@ export const updateBooking = asyncHandler(async (req, res, next) => {
 // @route   DELETE /api/bookings/:id
 // @access  Private/Admin
 export const deleteBooking = asyncHandler(async (req, res, next) => {
-  const booking = findById("bookings", req.params.id);
+  const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
 
   if (!booking) {
     return next(
@@ -161,7 +166,7 @@ export const deleteBooking = asyncHandler(async (req, res, next) => {
     );
   }
 
-  deleteById("bookings", req.params.id);
+  await prisma.booking.delete({ where: { id: req.params.id } });
 
   res.status(200).json({ success: true, data: {} });
 });

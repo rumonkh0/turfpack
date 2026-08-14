@@ -566,7 +566,8 @@ export default function UsersManagement() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="user">Manager</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
+                    <SelectItem value="partner">Partner</SelectItem>
                     <SelectItem value="admin">Administrator</SelectItem>
                   </SelectContent>
                 </Select>

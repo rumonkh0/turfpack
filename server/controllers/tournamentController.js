@@ -1,21 +1,25 @@
 import asyncHandler from "../middleware/async.js";
 import ErrorResponse from "../utils/errorResponse.js";
-import {
-  listRecords,
-  createRecord,
-  findById,
-  updateById,
-  deleteById,
-} from "../db/sqlite.js";
+import prisma from "../db/prismaClient.js";
 
 // @desc    Get all tournaments
 // @route   GET /api/tournaments
 // @access  Private
 export const getTournaments = asyncHandler(async (req, res, next) => {
-  const tournaments = listRecords("tournaments", {
-    sort: req.query.sort || "-createdAt",
-    limit: parseInt(req.query.limit, 10) || 500,
+  const limit = parseInt(req.query.limit, 10) || 500;
+  let orderBy = { created_at: "desc" };
+  if (req.query.sort) {
+    const isDesc = req.query.sort.startsWith("-");
+    const rawField = req.query.sort.replace("-", "");
+    const field = ["createdAt", "created_date", "created_at"].includes(rawField) ? "created_at" : rawField;
+    orderBy = { [field]: isDesc ? "desc" : "asc" };
+  }
+
+  const tournaments = await prisma.tournament.findMany({
+    orderBy,
+    take: limit,
   });
+
   res
     .status(200)
     .json({ success: true, count: tournaments.length, data: tournaments });
@@ -25,7 +29,7 @@ export const getTournaments = asyncHandler(async (req, res, next) => {
 // @route   POST /api/tournaments
 // @access  Private/Admin
 export const createTournament = asyncHandler(async (req, res, next) => {
-  const tournament = createRecord("tournaments", req.body);
+  const tournament = await prisma.tournament.create({ data: req.body });
   res.status(201).json({ success: true, data: tournament });
 });
 
@@ -33,7 +37,7 @@ export const createTournament = asyncHandler(async (req, res, next) => {
 // @route   PUT /api/tournaments/:id
 // @access  Private/Admin
 export const updateTournament = asyncHandler(async (req, res, next) => {
-  let tournament = findById("tournaments", req.params.id);
+  let tournament = await prisma.tournament.findUnique({ where: { id: req.params.id } });
 
   if (!tournament) {
     return next(
@@ -44,7 +48,10 @@ export const updateTournament = asyncHandler(async (req, res, next) => {
     );
   }
 
-  tournament = updateById("tournaments", req.params.id, req.body);
+  tournament = await prisma.tournament.update({
+    where: { id: req.params.id },
+    data: req.body,
+  });
 
   res.status(200).json({ success: true, data: tournament });
 });
@@ -53,7 +60,7 @@ export const updateTournament = asyncHandler(async (req, res, next) => {
 // @route   DELETE /api/tournaments/:id
 // @access  Private/Admin
 export const deleteTournament = asyncHandler(async (req, res, next) => {
-  const tournament = findById("tournaments", req.params.id);
+  const tournament = await prisma.tournament.findUnique({ where: { id: req.params.id } });
 
   if (!tournament) {
     return next(
@@ -64,7 +71,7 @@ export const deleteTournament = asyncHandler(async (req, res, next) => {
     );
   }
 
-  deleteById("tournaments", req.params.id);
+  await prisma.tournament.delete({ where: { id: req.params.id } });
 
   res.status(200).json({ success: true, data: {} });
 });

@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { findById } from "../db/sqlite.js";
+import prisma from "../db/prismaClient.js";
 
 // Protect routes
 export const protect = async (req, res, next) => {
@@ -22,7 +22,7 @@ export const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = findById("users", decoded.id);
+    req.user = await prisma.user.findUnique({ where: { id: decoded.id } });
 
     if (!req.user) {
       return res.status(401).json({ success: false, error: "User not found" });

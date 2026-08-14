@@ -1,4 +1,4 @@
-import { getSetting, setSetting } from "../db/sqlite.js";
+import { getSetting, setSetting } from "../db/prismaClient.js";
 
 /**
  * @desc    Get license status and machine ID
@@ -53,7 +53,7 @@ export const activateLicense = async (req, res) => {
     }
 
     // Store the valid key in the database
-    setSetting("license_key", licenseKey);
+    await setSetting("license_key", licenseKey);
 
     // Update the runtime status
     process.env.LICENSE_STATUS = "active";
