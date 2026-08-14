@@ -56,6 +56,8 @@ const allowedOrigins = [
   "https://admin.turf.rumon.top",
   "https://api.turf.rumon.top",
   "https://turfslotapi.rumon.top",
+  "https://turf.nivrosys.com",
+  "https://api.turf.nivrosys.com",
 ];
 
 const corsOptions = {
@@ -74,7 +76,8 @@ const corsOptions = {
     const isAllowed =
       isLocalOrigin ||
       allowedOrigins.includes(origin) ||
-      origin.endsWith(".rumon.top");
+      origin.endsWith(".rumon.top") ||
+      origin.endsWith(".nivrosys.com");
 
     if (isAllowed) {
       callback(null, true);
