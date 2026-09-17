@@ -2,6 +2,7 @@ import asyncHandler from "../middleware/async.js";
 import ErrorResponse from "../utils/errorResponse.js";
 import prisma from "../db/prismaClient.js";
 import { postOrderCreated, postOrderCancelled } from "../services/ledgerPostingService.js";
+import { createOrder as createOrderService } from "../services/orderService.js";
 
 // @desc    Get all orders
 // @route   GET /api/orders
@@ -28,37 +29,12 @@ export const getOrders = asyncHandler(async (req, res, next) => {
 // @route   POST /api/orders
 // @access  Private
 export const createOrder = asyncHandler(async (req, res, next) => {
-  const order = await prisma.order.create({ data: req.body });
-
-  // Update stock for each product
-  if (req.body.items && Array.isArray(req.body.items)) {
-    for (const item of req.body.items) {
-      if (item.product_id) {
-        await prisma.product.update({
-          where: { id: item.product_id },
-          data: { stock: { decrement: Number(item.quantity) || 0 } }
-        });
-      }
-    }
-  }
-
-  // Post to ledger
   try {
-    let costTotal = 0;
-    if (req.body.items && Array.isArray(req.body.items)) {
-      for (const item of req.body.items) {
-        if (item.product_id) {
-          const product = await prisma.product.findUnique({ where: { id: item.product_id } });
-          costTotal += (product?.cost_price || 0) * (Number(item.quantity) || 0);
-        }
-      }
-    }
-    await postOrderCreated(order, costTotal, req.user?._id || null);
+    const order = await createOrderService(req.body, req.user?._id || null);
+    res.status(201).json({ success: true, data: order });
   } catch (err) {
-    console.error("⚠️ Ledger posting failed for order creation:", err.message);
+    return next(new ErrorResponse(err.message, 400));
   }
-
-  res.status(201).json({ success: true, data: order });
 });
 
 // @desc    Update order

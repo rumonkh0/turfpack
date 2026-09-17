@@ -7,6 +7,7 @@ import {
   postBookingCancelled,
   postBookingRefund,
 } from "../services/ledgerPostingService.js";
+import { createBooking as createBookingService } from "../services/bookingService.js";
 
 // @desc    Get all bookings
 // @route   GET /api/bookings
@@ -48,72 +49,12 @@ export const getBooking = asyncHandler(async (req, res, next) => {
 // @route   POST /api/bookings
 // @access  Private
 export const createBooking = asyncHandler(async (req, res, next) => {
-  const turf = await prisma.turf.findUnique({ where: { id: req.body.turf_id } });
-  if (!turf) {
-    return next(
-      new ErrorResponse(`Turf not found with id of ${req.body.turf_id}`, 404),
-    );
-  }
-
-  const startHour = Number(req.body.start_hour);
-  const endHour = Number(req.body.end_hour || req.body.start_hour + 1);
-
-  // Check for conflicts
-  const conflict = await prisma.booking.findFirst({
-    where: {
-      turf_id: req.body.turf_id,
-      date: req.body.date,
-      status: { not: 'cancelled' },
-      start_hour: { lt: endHour },
-      end_hour: { gt: startHour },
-    }
-  });
-
-  if (conflict) {
-    return next(new ErrorResponse("Time slot already booked", 400));
-  }
-
-  const booking = await prisma.booking.create({
-    data: {
-      ...req.body,
-      start_hour: startHour,
-      end_hour: endHour,
-      duration_hours: req.body.duration_hours !== undefined ? Number(req.body.duration_hours) : (endHour - startHour),
-      total_price: Number(req.body.total_price || 0),
-      paid_amount: Number(req.body.paid_amount || 0),
-      turf_id: req.body.turf_id,
-      turf_name: turf.name,
-    }
-  });
-
-  // Create payment record if status is paid or partial
-  if (["paid", "partial"].includes(req.body.payment_status)) {
-    const paymentAmount =
-      req.body.payment_status === "partial"
-        ? Number(req.body.paid_amount || 0)
-        : Number(req.body.total_price || 0);
-
-    await prisma.payment.create({
-      data: {
-        booking_id: booking.id,
-        amount: paymentAmount,
-        status: "completed",
-        method: req.body.payment_method || "bkash",
-        transaction_id: req.body.txn_id,
-        customer_name: req.body.customer_name,
-        customer_phone: req.body.customer_phone,
-      }
-    });
-  }
-
-  // Post to ledger
   try {
-    await postBookingCreated(booking, req.user?._id || null);
+    const booking = await createBookingService(req.body, req.user?._id || null);
+    res.status(201).json({ success: true, data: booking });
   } catch (err) {
-    console.error("⚠️ Ledger posting failed for booking creation:", err.message);
+    return next(new ErrorResponse(err.message, 400));
   }
-
-  res.status(201).json({ success: true, data: booking });
 });
 
 // @desc    Update booking

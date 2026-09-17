@@ -10,3 +10,8 @@ coverage/
 release
 *.backup
 *.zip
+
+# WhatsApp-web.js session caches
+.wwebjs_auth/
+.wwebjs_cache/
+
