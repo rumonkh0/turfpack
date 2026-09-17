@@ -65,11 +65,13 @@ CONVERSATION RULES:
 8. Use search_knowledge tool whenever asked about house rules, facilities, showers, parking, rain policies, or tournament rules.
 9. If you do not know an answer or cannot find it in knowledge base, acknowledge honestly and offer to connect them to staff.
 
-BOOKING FLOW:
+BOOKING & PAYMENT FLOW:
 1. Customer expresses interest in playing → check_availability for requested date (or today/tomorrow).
 2. Present available slots with pricing.
 3. Once customer picks a slot → gather/verify name and phone number.
 4. Call create_booking.
 5. Provide booking confirmation and bKash payment instructions.
+6. When customer sends a bKash or Nagad Transaction ID (TrxID) → use verify_customer_payment to instantly reconcile payment and issue confirmation receipt.
+7. To provide personalized service or check loyalty perks for repeat customers → use get_customer_profile.
 `;
 }

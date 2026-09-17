@@ -154,4 +154,44 @@ export const toolDefinitions = [
       required: ["query"],
     },
   },
+  {
+    name: "verify_customer_payment",
+    description: "Verify and reconcile a customer payment using a transaction ID (bKash/Nagad TrxID), confirm the booking, and issue receipt.",
+    parameters: {
+      type: "object",
+      properties: {
+        phone: { type: "string", description: "Customer phone number" },
+        txn_id: { type: "string", description: "bKash/Nagad transaction ID (e.g., BLA7X8Y9Z0)" },
+        amount: { type: "number", description: "Optional paid amount in Taka" },
+        method: { type: "string", enum: ["bkash", "nagad", "rocket", "bank", "cash"] },
+        booking_id: { type: "string", description: "Optional specific booking ID" },
+      },
+      required: ["phone", "txn_id"],
+    },
+  },
+  {
+    name: "get_customer_profile",
+    description: "Fetch CRM customer profile, lifetime value, total bookings, preferred turf/time, and segmentation status (VIP, Regular, New, Churned).",
+    parameters: {
+      type: "object",
+      properties: {
+        phone: { type: "string", description: "Customer phone number" },
+      },
+      required: ["phone"],
+    },
+  },
+  {
+    name: "record_restock_order",
+    description: "Record inventory stock replenishment for a shop product and notify admins.",
+    parameters: {
+      type: "object",
+      properties: {
+        product_name: { type: "string", description: "Product name (or keyword match)" },
+        quantity: { type: "number", description: "Quantity of items added to stock" },
+        cost_price: { type: "number", description: "Optional cost price per unit" },
+        supplier_note: { type: "string", description: "Optional supplier or invoice note" },
+      },
+      required: ["product_name", "quantity"],
+    },
+  },
 ];

@@ -64,6 +64,65 @@ app.post("/api/agent/reindex", async (req, res) => {
   }
 });
 
+// Phase 3: Trigger payment reconciliation programmatically
+app.post("/api/agent/reconcile-payment", async (req, res) => {
+  const { phone, text, txnId, bookingId, amount, method } = req.body;
+  try {
+    const { reconcilePayment } = await import("./automation/paymentReconciler.js");
+    const result = await reconcilePayment({ phone, text, txnId, bookingId, amount, method });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Phase 3: Trigger CRM synchronization
+app.post("/api/agent/crm-sync", async (req, res) => {
+  try {
+    const { syncCustomerProfiles } = await import("./automation/customerCRM.js");
+    const result = await syncCustomerProfiles();
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Phase 3: Get customer profile by phone
+app.get("/api/agent/crm-profile/:phone", async (req, res) => {
+  try {
+    const { getCustomerProfile } = await import("./automation/customerCRM.js");
+    const profile = await getCustomerProfile(req.params.phone);
+    if (!profile) {
+      return res.status(404).json({ success: false, error: "Profile not found" });
+    }
+    res.json({ success: true, profile });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Phase 3: Get inventory velocity and restock projections
+app.get("/api/agent/inventory-velocity", async (req, res) => {
+  try {
+    const { calculateStockVelocity } = await import("./automation/inventoryMonitor.js");
+    const velocity = await calculateStockVelocity(Number(req.query.days) || 14);
+    res.json({ success: true, data: velocity });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Phase 3: Trigger daily payment audit
+app.post("/api/agent/payment-audit", async (req, res) => {
+  try {
+    const { dailyPaymentAudit } = await import("./automation/paymentReconciler.js");
+    const audit = await dailyPaymentAudit();
+    res.json({ success: true, audit });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Main startup sequence
 async function start() {
   console.log("==========================================");

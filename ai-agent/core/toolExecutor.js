@@ -3,6 +3,9 @@ import { getAvailableSlots, calculatePrice, createBooking, cancelBooking } from 
 import { createOrder } from "../../server/services/orderService.js";
 import { getProfitLoss, getReceivables, getDashboard } from "../../server/services/reportingService.js";
 import { searchKnowledge } from "../rag/retriever.js";
+import { reconcilePayment } from "../automation/paymentReconciler.js";
+import { getCustomerProfile } from "../automation/customerCRM.js";
+import { recordRestock } from "../automation/inventoryMonitor.js";
 
 export async function executeTool(name, args) {
   try {
@@ -107,6 +110,26 @@ export async function executeTool(name, args) {
 
       case "search_knowledge":
         return await searchKnowledge(args.query);
+
+      case "verify_customer_payment":
+        return await reconcilePayment({
+          phone: args.phone,
+          txnId: args.txn_id,
+          amount: args.amount,
+          method: args.method || "bkash",
+          bookingId: args.booking_id,
+        });
+
+      case "get_customer_profile":
+        return await getCustomerProfile(args.phone);
+
+      case "record_restock_order":
+        return await recordRestock({
+          productName: args.product_name,
+          quantity: args.quantity,
+          costPrice: args.cost_price,
+          supplierNote: args.supplier_note,
+        });
 
       default:
         return { error: `Unknown tool: ${name}` };

@@ -192,3 +192,49 @@ export async function cancelBooking(bookingId, createdBy = null) {
 
   return updated;
 }
+
+/**
+ * Record a payment for an existing booking (installment or TrxID reconciliation).
+ * @param {string} bookingId
+ * @param {object} paymentData - { amount, method, transaction_id, customer_name, customer_phone }
+ * @param {string|null} createdBy
+ * @returns {Promise<{booking: object, payment: object}>}
+ */
+export async function recordBookingPayment(bookingId, paymentData, createdBy = null) {
+  const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+  if (!booking) throw new Error("Booking not found");
+
+  const amount = Number(paymentData.amount || (booking.total_price - booking.paid_amount));
+  const newPaid = Number(booking.paid_amount || 0) + amount;
+  const newStatus = newPaid >= booking.total_price ? "paid" : "partial";
+
+  const payment = await prisma.payment.create({
+    data: {
+      booking_id: booking.id,
+      amount,
+      status: "completed",
+      method: paymentData.method || "bkash",
+      transaction_id: paymentData.transaction_id || null,
+      customer_name: paymentData.customer_name || booking.customer_name,
+      customer_phone: paymentData.customer_phone || booking.customer_phone,
+    },
+  });
+
+  const updatedBooking = await prisma.booking.update({
+    where: { id: booking.id },
+    data: {
+      paid_amount: newPaid,
+      payment_status: newStatus,
+      payment_method: paymentData.method || booking.payment_method,
+      txn_id: paymentData.transaction_id || booking.txn_id,
+    },
+  });
+
+  try {
+    await postBookingInstallment(booking, amount, paymentData.method, createdBy);
+  } catch (err) {
+    console.error("⚠️ Ledger posting failed for booking installment:", err.message);
+  }
+
+  return { booking: updatedBooking, payment };
+}
