@@ -109,6 +109,15 @@ app.use(
   }),
 );
 
+// Health check endpoints (fast, public, unauthenticated)
+app.get(["/health", "/api/health"], (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
+
 // Mount routers
 app.use("/api/auth", authRoutes);
 app.use("/api/turfs", turfRoutes);

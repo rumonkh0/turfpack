@@ -1,14 +1,7 @@
 import dotenv from "dotenv";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import prisma from "../db/prismaClient.js";
-import {
-  postBookingCreated,
-  postBookingInstallment,
-  postOrderCreated,
-  postExpense,
-  postIncome,
-  postPartnerPayout,
-} from "../services/ledgerPostingService.js";
 
 dotenv.config();
 
@@ -21,7 +14,10 @@ function randomInt(min, max) {
 }
 
 function formatDate(d) {
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function addDays(d, days) {
@@ -29,6 +25,17 @@ function addDays(d, days) {
   result.setDate(result.getDate() + days);
   return result;
 }
+
+const cashAccount = (method) => {
+  const map = {
+    bkash: "1001",
+    nagad: "1002",
+    rocket: "1003",
+    cash: "1004",
+    card: "1005",
+  };
+  return map[method] || "1006";
+};
 
 const CUSTOMER_NAMES = [
   "Sabbir Hossain", "Tanvir Ahmed", "Mahmudul Hasan", "Rakibul Islam",
@@ -47,8 +54,13 @@ const CUSTOMER_NAMES = [
 ];
 
 async function seedFullDemo() {
-  console.log("🚀 Starting comprehensive 6-month demo dataset seeding...");
-  console.log(`Connecting to: ${process.env.DATABASE_URL.replace(/:[^:@]+@/, ":***@")}`);
+  const today = new Date();
+  const todayStr = formatDate(today);
+  const startDate = addDays(today, -180); // 6 months of continuous history
+  const upcomingEndDate = addDays(today, 10); // 10 days of upcoming slots
+
+  console.log(`🚀 Starting optimized 6-month demo seeding relative to TODAY (${todayStr})...`);
+  console.log(`Connecting to: ${process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]+@/, ":***@") : "default"}`);
 
   await prisma.$connect();
   console.log("Connected to database. Cleaning old records...");
@@ -99,9 +111,9 @@ async function seedFullDemo() {
     { code: "6099", name: "Miscellaneous Expense", type: "expense", normal_side: "debit", description: "Uncategorized expenses" },
   ];
 
-  for (const acc of defaultAccounts) {
-    await prisma.account.create({ data: { ...acc, is_system: 1, status: "active" } });
-  }
+  await prisma.account.createMany({
+    data: defaultAccounts.map(a => ({ ...a, is_system: 1, status: "active" }))
+  });
 
   // 3. App Settings
   await prisma.appSetting.createMany({
@@ -181,9 +193,9 @@ async function seedFullDemo() {
     }
   });
 
-  // 5. Profit Sharing History (60/40 Split setup 6 months ago)
+  // 5. Profit Sharing History
   console.log("Setting up Partner Profit Sharing ratios...");
-  const sixMonthsAgoStr = "2026-02-01";
+  const sixMonthsAgoStr = formatDate(startDate);
   await prisma.profitShareRatio.createMany({
     data: [
       { user_id: partner1.id, share_bp: 6000, effective_from: sixMonthsAgoStr, effective_to: null, version: 1 },
@@ -292,13 +304,15 @@ async function seedFullDemo() {
 
   // 8. Tournaments
   console.log("Creating Tournaments...");
+  const t1StartDate = formatDate(addDays(today, -150));
+  const t1EndDate = formatDate(addDays(today, -145));
   await prisma.tournament.create({
     data: {
       name: "Dhaka Champions Cup 2026",
       turf_id: turf1.id,
       turf_name: turf1.name,
-      start_date: "2026-03-10",
-      end_date: "2026-03-15",
+      start_date: t1StartDate,
+      end_date: t1EndDate,
       max_teams: 16,
       entry_fee: 6000,
       prize_pool: 60000,
@@ -318,19 +332,21 @@ async function seedFullDemo() {
     }
   });
 
+  const t2StartDate = formatDate(addDays(today, -75));
+  const t2EndDate = formatDate(addDays(today, -73));
   await prisma.tournament.create({
     data: {
       name: "Independence Cup Futsal",
       turf_id: turf2.id,
       turf_name: turf2.name,
-      start_date: "2026-03-26",
-      end_date: "2026-03-27",
+      start_date: t2StartDate,
+      end_date: t2EndDate,
       max_teams: 8,
       entry_fee: 4500,
       prize_pool: 25000,
       status: "completed",
       format: "knockout",
-      description: "National Independence Day celebratory 5-a-side championship.",
+      description: "Celebrating national football spirit with 8 top academy squads.",
       teams: [
         { name: "Red Green Tigers", contact: "01811111111", status: "paid" },
         { name: "71 Warriors", contact: "01822222222", status: "paid" },
@@ -340,17 +356,19 @@ async function seedFullDemo() {
     }
   });
 
+  const t3StartDate = formatDate(addDays(today, -1));
+  const t3EndDate = formatDate(addDays(today, 6));
   await prisma.tournament.create({
     data: {
-      name: "Monsoon Super League 2026",
+      name: "Dhaka Monsoon Super League 2026",
       turf_id: turf3.id,
       turf_name: turf3.name,
-      start_date: "2026-08-20",
-      end_date: "2026-08-25",
+      start_date: t3StartDate,
+      end_date: t3EndDate,
       max_teams: 12,
       entry_fee: 5000,
       prize_pool: 40000,
-      status: "upcoming",
+      status: "ongoing",
       format: "group_knockout",
       description: "High-intensity monsoon league with night floodlights and live streaming.",
       teams: [
@@ -362,195 +380,298 @@ async function seedFullDemo() {
     }
   });
 
-  // Post tournament revenue journal entries for completed tournaments
-  const tournInc1 = await prisma.income.create({
+  // Prepare ledger collections for batch insertion
+  const batchJournalEntries = [];
+  const batchJournalLines = [];
+
+  const addBatchJournal = (entryDate, description, refType, refId, event, lines) => {
+    const entryId = crypto.randomUUID();
+    batchJournalEntries.push({
+      id: entryId,
+      entry_date: entryDate,
+      description,
+      reference_type: refType,
+      reference_id: refId,
+      posting_event: event,
+      created_by: admin1.id,
+      created_at: new Date(`${entryDate}T12:00:00Z`),
+    });
+
+    for (const l of lines) {
+      batchJournalLines.push({
+        id: crypto.randomUUID(),
+        journal_entry_id: entryId,
+        account_code: l.account_code,
+        debit: l.debit || 0,
+        credit: l.credit || 0,
+        description: l.description || null,
+        created_at: new Date(`${entryDate}T12:00:00Z`),
+      });
+    }
+  };
+
+  // Tournament revenues
+  const tInc1Id = crypto.randomUUID();
+  await prisma.income.create({
     data: {
+      id: tInc1Id,
       description: "Dhaka Champions Cup 2026 entry fees (8 teams)",
       amount: 48000,
       account_code: "4003",
       payment_method: "bkash",
       payment_status: "paid",
-      entry_date: "2026-03-10",
+      entry_date: t1StartDate,
       created_by: admin1.id,
     }
   });
-  await postIncome(tournInc1, admin1.id);
+  addBatchJournal(t1StartDate, "Tournament: Dhaka Champions Cup entry fees", "income", tInc1Id, "income:recorded", [
+    { account_code: "1001", debit: 4800000, credit: 0, description: "bKash receipt" },
+    { account_code: "4003", debit: 0, credit: 4800000, description: "Tournament revenue" },
+  ]);
 
-  const tournInc2 = await prisma.income.create({
+  const tInc2Id = crypto.randomUUID();
+  await prisma.income.create({
     data: {
+      id: tInc2Id,
       description: "Independence Cup Futsal entry fees (4 teams)",
       amount: 18000,
       account_code: "4003",
       payment_method: "nagad",
       payment_status: "paid",
-      entry_date: "2026-03-26",
+      entry_date: t2StartDate,
       created_by: admin1.id,
     }
   });
-  await postIncome(tournInc2, admin1.id);
+  addBatchJournal(t2StartDate, "Tournament: Independence Cup entry fees", "income", tInc2Id, "income:recorded", [
+    { account_code: "1002", debit: 1800000, credit: 0, description: "Nagad receipt" },
+    { account_code: "4003", debit: 0, credit: 1800000, description: "Tournament revenue" },
+  ]);
 
-  // Partner drawings (Profit distributions) in April & July
-  await postPartnerPayout("PAYOUT-2026-01", partner1, 150000, "bkash", "2026-04-10", admin1.id);
-  await postPartnerPayout("PAYOUT-2026-02", partner2, 100000, "nagad", "2026-04-10", admin1.id);
-  await postPartnerPayout("PAYOUT-2026-03", partner1, 180000, "card", "2026-07-15", admin1.id);
-  await postPartnerPayout("PAYOUT-2026-04", partner2, 120000, "card", "2026-07-15", admin1.id);
+  // Partner drawings (Profit distributions)
+  const addPayout = (date, partner, amount, method, refCode) => {
+    const poisha = Math.round(amount * 100);
+    addBatchJournal(date, `Partner drawing: ${partner.full_name}`, "partner_payout", refCode, "partner:payout", [
+      { account_code: "3100", debit: poisha, credit: 0, description: `Payout to ${partner.full_name}` },
+      { account_code: cashAccount(method), debit: 0, credit: poisha, description: `Disbursement via ${method}` },
+    ]);
+  };
 
-  // 9. Generate Monthly Recurring Expenses & Incomes over 6 Months (Feb 2026 - Aug 2026)
-  console.log("Generating 6-month historical Expenses & Incomes with Double-Entry Ledger...");
-  const months = [
-    { name: "February 2026", prefix: "2026-02" },
-    { name: "March 2026", prefix: "2026-03" },
-    { name: "April 2026", prefix: "2026-04" },
-    { name: "May 2026", prefix: "2026-05" },
-    { name: "June 2026", prefix: "2026-06" },
-    { name: "July 2026", prefix: "2026-07" },
-    { name: "August 2026", prefix: "2026-08" },
-  ];
+  addPayout(formatDate(addDays(today, -120)), partner1, 150000, "bkash", "PAYOUT-2026-01");
+  addPayout(formatDate(addDays(today, -120)), partner2, 100000, "nagad", "PAYOUT-2026-02");
+  addPayout(formatDate(addDays(today, -50)), partner1, 180000, "card", "PAYOUT-2026-03");
+  addPayout(formatDate(addDays(today, -50)), partner2, 120000, "card", "PAYOUT-2026-04");
+  addPayout(formatDate(addDays(today, -10)), partner1, 120000, "bkash", "PAYOUT-2026-05");
+  addPayout(formatDate(addDays(today, -10)), partner2, 80000, "nagad", "PAYOUT-2026-06");
 
+  // 9. Generate Monthly Recurring Expenses & Incomes over 6 Months dynamically
+  console.log("Generating dynamic monthly Expenses & Incomes with Double-Entry Ledger...");
+  const months = [];
+  const monthCursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  while (monthCursor <= currentMonthStart) {
+    const y = monthCursor.getFullYear();
+    const m = String(monthCursor.getMonth() + 1).padStart(2, "0");
+    const mName = monthCursor.toLocaleString("en-US", { month: "long", year: "numeric" });
+    months.push({
+      name: mName,
+      prefix: `${y}-${m}`,
+      isCurrentMonth: (y === today.getFullYear() && monthCursor.getMonth() === today.getMonth()),
+    });
+    monthCursor.setMonth(monthCursor.getMonth() + 1);
+  }
+
+  const allExpenses = [];
   for (const m of months) {
-    const isAug = m.prefix === "2026-08";
+    const isCurrent = m.isCurrentMonth;
+    const currentDay = today.getDate();
 
     // Monthly Rent
-    const rentExp = await prisma.expense.create({
-      data: {
+    if (!isCurrent || currentDay >= 2) {
+      const expId = crypto.randomUUID();
+      const entryDate = `${m.prefix}-02`;
+      allExpenses.push({
+        id: expId,
         description: `Venue lease rent for 3 turf properties - ${m.name}`,
         amount: 85000,
         account_code: "6001",
         payment_method: "cash",
         payment_status: "paid",
-        entry_date: `${m.prefix}-02`,
+        entry_date: entryDate,
         created_by: admin1.id,
-      }
-    });
-    await postExpense(rentExp, admin1.id);
-
-    // Utilities (Electricity, Floodlights & Generators)
-    const utilAmount = randomInt(24000, 31000);
-    const utilExp = await prisma.expense.create({
-      data: {
-        description: `Electricity & floodlight bill (DESCO/DPDC) - ${m.name}`,
-        amount: utilAmount,
-        account_code: "6002",
-        payment_method: "bkash",
-        payment_status: "paid",
-        entry_date: `${m.prefix}-10`,
-        created_by: admin1.id,
-      }
-    });
-    await postExpense(utilExp, admin1.id);
+      });
+      addBatchJournal(entryDate, `Expense: Venue lease rent - ${m.name}`, "expense", expId, "expense:recorded", [
+        { account_code: "6001", debit: 8500000, credit: 0, description: "Venue rental" },
+        { account_code: "1004", debit: 0, credit: 8500000, description: "Cash payment" },
+      ]);
+    }
 
     // Salaries & Wages
-    const staffExp = await prisma.expense.create({
-      data: {
+    if (!isCurrent || currentDay >= 5) {
+      const expId = crypto.randomUUID();
+      const entryDate = `${m.prefix}-05`;
+      allExpenses.push({
+        id: expId,
         description: `Staff salaries (Manager, groundskeepers, security) - ${m.name}`,
         amount: 48000,
         account_code: "6003",
         payment_method: "cash",
         payment_status: "paid",
-        entry_date: `${m.prefix}-05`,
+        entry_date: entryDate,
         created_by: admin1.id,
-      }
-    });
-    await postExpense(staffExp, admin1.id);
-
-    // Maintenance & Supplies
-    const maintAmount = randomInt(7000, 16000);
-    const maintExp = await prisma.expense.create({
-      data: {
-        description: `Turf grooming, rubber infill & netting repair - ${m.name}`,
-        amount: maintAmount,
-        account_code: "6004",
-        payment_method: "cash",
-        payment_status: "paid",
-        entry_date: `${m.prefix}-18`,
-        created_by: admin1.id,
-      }
-    });
-    await postExpense(maintExp, admin1.id);
-
-    // Marketing (Meta Ads & Local Promotion)
-    const mktAmount = randomInt(5000, 12000);
-    const mktExp = await prisma.expense.create({
-      data: {
-        description: `Social media advertising & tournament boost - ${m.name}`,
-        amount: mktAmount,
-        account_code: "6005",
-        payment_method: "card",
-        payment_status: "paid",
-        entry_date: `${m.prefix}-12`,
-        created_by: admin1.id,
-      }
-    });
-    await postExpense(mktExp, admin1.id);
-
-    // Equipment purchases in selected months
-    if (["2026-02", "2026-04", "2026-07"].includes(m.prefix)) {
-      const eqExp = await prisma.expense.create({
-        data: {
-          description: `New tournament match balls, corner flags & bib sets`,
-          amount: 8500,
-          account_code: "6006",
-          payment_method: "nagad",
-          payment_status: "paid",
-          entry_date: `${m.prefix}-15`,
-          created_by: admin1.id,
-        }
       });
-      await postExpense(eqExp, admin1.id);
+      addBatchJournal(entryDate, `Expense: Staff salaries - ${m.name}`, "expense", expId, "expense:recorded", [
+        { account_code: "6003", debit: 4800000, credit: 0, description: "Staff payroll" },
+        { account_code: "1004", debit: 0, credit: 4800000, description: "Cash payroll payment" },
+      ]);
     }
+
+    // Utilities
+    const utilDay = isCurrent ? Math.min(currentDay, 4) : 10;
+    const utilDateStr = `${m.prefix}-${String(utilDay).padStart(2, "0")}`;
+    const utilAmount = randomInt(24000, 31000);
+    const utilExpId = crypto.randomUUID();
+    allExpenses.push({
+      id: utilExpId,
+      description: `Electricity & floodlight bill (DESCO/DPDC) - ${m.name}`,
+      amount: utilAmount,
+      account_code: "6002",
+      payment_method: "bkash",
+      payment_status: "paid",
+      entry_date: utilDateStr,
+      created_by: admin1.id,
+    });
+    addBatchJournal(utilDateStr, `Expense: Utilities - ${m.name}`, "expense", utilExpId, "expense:recorded", [
+      { account_code: "6002", debit: utilAmount * 100, credit: 0, description: "Electricity & floodlight" },
+      { account_code: "1001", debit: 0, credit: utilAmount * 100, description: "bKash bill pay" },
+    ]);
+
+    // Maintenance
+    const maintDay = isCurrent ? Math.min(currentDay, 3) : 18;
+    const maintDateStr = `${m.prefix}-${String(maintDay).padStart(2, "0")}`;
+    const maintAmount = randomInt(7000, 16000);
+    const maintExpId = crypto.randomUUID();
+    allExpenses.push({
+      id: maintExpId,
+      description: `Turf grooming, rubber infill & netting repair - ${m.name}`,
+      amount: maintAmount,
+      account_code: "6004",
+      payment_method: "cash",
+      payment_status: "paid",
+      entry_date: maintDateStr,
+      created_by: admin1.id,
+    });
+    addBatchJournal(maintDateStr, `Expense: Maintenance - ${m.name}`, "expense", maintExpId, "expense:recorded", [
+      { account_code: "6004", debit: maintAmount * 100, credit: 0, description: "Turf upkeep" },
+      { account_code: "1004", debit: 0, credit: maintAmount * 100, description: "Cash payment" },
+    ]);
+
+    // Marketing
+    const mktDay = isCurrent ? Math.min(currentDay, 2) : 12;
+    const mktDateStr = `${m.prefix}-${String(mktDay).padStart(2, "0")}`;
+    const mktAmount = randomInt(5000, 12000);
+    const mktExpId = crypto.randomUUID();
+    allExpenses.push({
+      id: mktExpId,
+      description: `Social media advertising & tournament boost - ${m.name}`,
+      amount: mktAmount,
+      account_code: "6005",
+      payment_method: "card",
+      payment_status: "paid",
+      entry_date: mktDateStr,
+      created_by: admin1.id,
+    });
+    addBatchJournal(mktDateStr, `Expense: Marketing - ${m.name}`, "expense", mktExpId, "expense:recorded", [
+      { account_code: "6005", debit: mktAmount * 100, credit: 0, description: "Digital promotions" },
+      { account_code: "1005", debit: 0, credit: mktAmount * 100, description: "Card charge" },
+    ]);
+
+    // Equipment
+    const eqDay = isCurrent ? 1 : 15;
+    const eqDateStr = `${m.prefix}-${String(eqDay).padStart(2, "0")}`;
+    const eqExpId = crypto.randomUUID();
+    allExpenses.push({
+      id: eqExpId,
+      description: `Tournament match balls, corner flags & bib sets - ${m.name}`,
+      amount: 8500,
+      account_code: "6006",
+      payment_method: "nagad",
+      payment_status: "paid",
+      entry_date: eqDateStr,
+      created_by: admin1.id,
+    });
+    addBatchJournal(eqDateStr, `Expense: Equipment - ${m.name}`, "expense", eqExpId, "expense:recorded", [
+      { account_code: "6006", debit: 850000, credit: 0, description: "Sports gear" },
+      { account_code: "1002", debit: 0, credit: 850000, description: "Nagad payment" },
+    ]);
   }
 
-  // Sponsorship & Misc Income records
-  const inc1 = await prisma.income.create({
+  await prisma.expense.createMany({ data: allExpenses });
+
+  // Sponsorship Incomes
+  const inc1Date = formatDate(addDays(today, -130));
+  const inc1Id = crypto.randomUUID();
+  await prisma.income.create({
     data: {
+      id: inc1Id,
       description: "Pitch-side perimeter banner sponsorship from local sports brand",
       amount: 45000,
       account_code: "4099",
       payment_method: "bkash",
       payment_status: "paid",
-      entry_date: "2026-03-08",
+      entry_date: inc1Date,
       created_by: admin1.id,
     }
   });
-  await postIncome(inc1, admin1.id);
+  addBatchJournal(inc1Date, "Sponsorship: Pitch-side banner", "income", inc1Id, "income:recorded", [
+    { account_code: "1001", debit: 4500000, credit: 0, description: "bKash receipt" },
+    { account_code: "4099", debit: 0, credit: 4500000, description: "Sponsorship revenue" },
+  ]);
 
-  const inc2 = await prisma.income.create({
+  const inc2Date = formatDate(addDays(today, -60));
+  const inc2Id = crypto.randomUUID();
+  await prisma.income.create({
     data: {
+      id: inc2Id,
       description: "Exclusive beverage kiosk station fee for summer season",
       amount: 30000,
       account_code: "4099",
       payment_method: "nagad",
       payment_status: "paid",
-      entry_date: "2026-05-15",
+      entry_date: inc2Date,
       created_by: admin1.id,
     }
   });
-  await postIncome(inc2, admin1.id);
+  addBatchJournal(inc2Date, "Kiosk: Station concession fee", "income", inc2Id, "income:recorded", [
+    { account_code: "1002", debit: 3000000, credit: 0, description: "Nagad receipt" },
+    { account_code: "4099", debit: 0, credit: 3000000, description: "Concession fee" },
+  ]);
 
-  // 10. Generate 400+ Realistic Bookings over 195 days (Feb 1, 2026 to Aug 14, 2026)
-  console.log("Generating 400+ realistic historical bookings & ledger records...");
-  const startDate = new Date("2026-02-01T00:00:00Z");
-  const endDate = new Date("2026-08-14T00:00:00Z");
+  // 10. Generate 450+ Realistic Bookings from 6 months ago through TODAY and 10 days upcoming
+  console.log("Generating realistic historical, today's, and upcoming bookings with Ledger...");
   let curDate = new Date(startDate);
 
-  let totalBookingsCount = 0;
-  let totalPaymentsCount = 0;
-
+  const allBookings = [];
+  const allPayments = [];
   const paymentMethods = ["bkash", "nagad", "rocket", "cash", "card"];
 
-  while (curDate <= endDate) {
+  while (curDate <= upcomingEndDate) {
     const dayStr = formatDate(curDate);
-    const dayOfWeek = curDate.getUTCDay(); // 5 = Friday, 6 = Saturday (weekend in Bangladesh)
+    const dayOfWeek = curDate.getUTCDay();
     const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
+    const isToday = dayStr === todayStr;
+    const isUpcoming = curDate > today && !isToday;
 
-    // 2-4 bookings on weekdays, 4-7 bookings on weekends
-    const bookingsToday = isWeekend ? randomInt(4, 7) : randomInt(2, 4);
+    // Balanced daily distribution: 2-4 bookings on weekdays, 4-5 on weekends (including today)
+    const bookingsToday = isWeekend ? randomInt(4, 5) : randomInt(2, 4);
+
+    const availableHours = [7, 8, 10, 15, 16, 17, 18, 19, 20, 21, 22];
 
     for (let b = 0; b < bookingsToday; b++) {
       const selectedTurf = randomChoice(turfs);
       const customer = randomChoice(CUSTOMER_NAMES);
       const phone = `017${randomInt(10000000, 99999999)}`;
-      const startHour = randomChoice([7, 8, 16, 17, 18, 19, 20, 21, 22]);
+      const startHour = randomChoice(availableHours);
       const durationHours = randomChoice([1, 1.5, 2]);
       const endHour = Math.min(23, Math.ceil(startHour + durationHours));
 
@@ -567,21 +688,20 @@ async function seedFullDemo() {
       const totalPrice = Math.round(pricePerHour * durationHours);
       const method = randomChoice(paymentMethods);
 
-      // Status determination: 88% full paid, 7% partial, 4% unpaid, 1% cancelled
-      const rand = Math.random();
       let status = "confirmed";
       let paymentStatus = "paid";
       let paidAmount = totalPrice;
       let paymentHistory = [];
 
-      if (rand < 0.01) {
+      const rand = Math.random();
+      if (rand < 0.02) {
         status = "cancelled";
         paymentStatus = "unpaid";
         paidAmount = 0;
-      } else if (rand < 0.05) {
+      } else if (rand < 0.08) {
         paymentStatus = "unpaid";
         paidAmount = 0;
-      } else if (rand < 0.12) {
+      } else if (rand < 0.18) {
         paymentStatus = "partial";
         paidAmount = Math.round(totalPrice * 0.4);
         paymentHistory.push({
@@ -603,65 +723,86 @@ async function seedFullDemo() {
         });
       }
 
-      const bookingRecord = await prisma.booking.create({
-        data: {
-          turf_id: selectedTurf.id,
-          turf_name: selectedTurf.name,
-          customer_name: customer,
-          customer_phone: phone,
-          customer_email: customer.toLowerCase().replace(/[^a-z0-9]/g, "") + "@example.com",
-          date: dayStr,
-          start_hour: startHour,
-          end_hour: endHour,
-          duration_hours: durationHours,
-          total_price: totalPrice,
-          paid_amount: paidAmount,
-          payment_history: paymentHistory,
-          status,
-          payment_status: paymentStatus,
-          payment_method: method,
-          txn_id: paymentHistory.length > 0 ? paymentHistory[0].txn_id : null,
-          created_at: new Date(`${dayStr}T${String(startHour).padStart(2, "0")}:00:00Z`),
-        }
+      const bookingId = crypto.randomUUID();
+      const txnId = paymentHistory.length > 0 ? paymentHistory[0].txn_id : null;
+      // Anchor created_at to the slot date so each day has its own balanced revenue
+      const createdAtDate = new Date(`${dayStr}T${String(startHour).padStart(2, "0")}:00:00Z`);
+
+      allBookings.push({
+        id: bookingId,
+        turf_id: selectedTurf.id,
+        turf_name: selectedTurf.name,
+        customer_name: customer,
+        customer_phone: phone,
+        customer_email: customer.toLowerCase().replace(/[^a-z0-9]/g, "") + "@example.com",
+        date: dayStr,
+        start_hour: startHour,
+        end_hour: endHour,
+        duration_hours: durationHours,
+        total_price: totalPrice,
+        paid_amount: paidAmount,
+        payment_history: JSON.stringify(paymentHistory),
+        status,
+        payment_status: paymentStatus,
+        payment_method: method,
+        txn_id: txnId,
+        created_at: createdAtDate,
       });
 
-      totalBookingsCount++;
-
-      // Create Payment record & Post double entry ledger
       if (status !== "cancelled") {
         if (paidAmount > 0) {
-          await prisma.payment.create({
-            data: {
-              booking_id: bookingRecord.id,
-              amount: paidAmount,
-              method,
-              status: "completed",
-              transaction_id: bookingRecord.txn_id,
-              customer_name: customer,
-              customer_phone: phone,
-              created_at: bookingRecord.created_at,
-            }
+          allPayments.push({
+            id: crypto.randomUUID(),
+            booking_id: bookingId,
+            amount: paidAmount,
+            method,
+            status: "completed",
+            transaction_id: txnId,
+            customer_name: customer,
+            customer_phone: phone,
+            created_at: createdAtDate,
           });
-          totalPaymentsCount++;
         }
 
-        // Post to general ledger
-        await postBookingCreated(bookingRecord, staff1.id);
+        // Ledger entry for booking
+        const totalPoisha = totalPrice * 100;
+        const paidPoisha = (paymentStatus === "paid" ? totalPrice : paidAmount) * 100;
+        const lines = [
+          { account_code: "1100", debit: totalPoisha, credit: 0, description: "Accounts Receivable" },
+          { account_code: "4001", debit: 0, credit: totalPoisha, description: "Booking Revenue" },
+        ];
+        if (paidPoisha > 0) {
+          lines.push(
+            { account_code: cashAccount(method), debit: paidPoisha, credit: 0, description: `Payment via ${method}` },
+            { account_code: "1100", debit: 0, credit: paidPoisha, description: "AR settlement" }
+          );
+        }
+
+        addBatchJournal(dayStr, `Booking: ${customer} - ${selectedTurf.name}`, "booking", bookingId, "booking:created", lines);
       }
     }
 
     curDate = addDays(curDate, 1);
   }
 
-  // 11. Generate 140+ POS Retail Orders across the 6 Months
-  console.log("Generating POS Retail Orders & COGS Ledger records...");
-  curDate = new Date(startDate);
-  let totalOrdersCount = 0;
+  console.log(`Inserting ${allBookings.length} bookings & ${allPayments.length} payments in batch...`);
+  // Insert in chunks of 200 for maximum reliability & speed
+  for (let i = 0; i < allBookings.length; i += 200) {
+    await prisma.booking.createMany({ data: allBookings.slice(i, i + 200) });
+  }
+  for (let i = 0; i < allPayments.length; i += 200) {
+    await prisma.payment.createMany({ data: allPayments.slice(i, i + 200) });
+  }
 
-  while (curDate <= endDate) {
+  // 11. Generate POS Retail Orders up to today
+  console.log("Generating POS Retail Orders & COGS Ledger records in batch...");
+  curDate = new Date(startDate);
+  const allOrders = [];
+
+  while (curDate <= today) {
     const dayStr = formatDate(curDate);
-    // 0 to 2 orders per day
-    const ordersToday = randomInt(0, 2);
+    const isToday = dayStr === todayStr;
+    const ordersToday = isToday ? 3 : randomInt(0, 2);
 
     for (let o = 0; o < ordersToday; o++) {
       const p1 = randomChoice(createdProducts);
@@ -679,39 +820,57 @@ async function seedFullDemo() {
       const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const costTotal = items.reduce((sum, item) => sum + item.cost_price * item.quantity, 0);
       const method = randomChoice(["cash", "bkash", "nagad"]);
+      const orderId = crypto.randomUUID();
 
-      const orderRecord = await prisma.order.create({
-        data: {
-          customer_name: randomChoice(CUSTOMER_NAMES).split(":")[0].trim(),
-          customer_phone: `018${randomInt(10000000, 99999999)}`,
-          items,
-          total_amount: totalAmount,
-          status: "confirmed",
-          payment_method: method,
-          payment_status: "paid",
-          notes: "Counter retail sale",
-          created_at: new Date(`${dayStr}T18:30:00Z`),
-        }
+      allOrders.push({
+        id: orderId,
+        customer_name: randomChoice(CUSTOMER_NAMES).split(":")[0].trim(),
+        customer_phone: `018${randomInt(10000000, 99999999)}`,
+        items: JSON.stringify(items),
+        total_amount: totalAmount,
+        status: "confirmed",
+        payment_method: method,
+        payment_status: "paid",
+        notes: "Counter retail sale",
+        created_at: new Date(`${dayStr}T18:30:00Z`),
       });
 
-      totalOrdersCount++;
-      await postOrderCreated(orderRecord, costTotal, staff1.id);
+      const totalPoisha = totalAmount * 100;
+      const costPoisha = costTotal * 100;
+      addBatchJournal(dayStr, "POS Sale: Counter retail order", "order", orderId, "order:created", [
+        { account_code: cashAccount(method), debit: totalPoisha, credit: 0, description: "Cash from retail sale" },
+        { account_code: "4002", debit: 0, credit: totalPoisha, description: "Product Sales Revenue" },
+        { account_code: "5001", debit: costPoisha, credit: 0, description: "COGS - retail sale" },
+        { account_code: "1200", debit: 0, credit: costPoisha, description: "Inventory reduction" },
+      ]);
     }
 
     curDate = addDays(curDate, 1);
   }
 
+  for (let i = 0; i < allOrders.length; i += 200) {
+    await prisma.order.createMany({ data: allOrders.slice(i, i + 200) });
+  }
+
+  console.log(`Inserting ${batchJournalEntries.length} journal entries & ${batchJournalLines.length} lines in batch...`);
+  for (let i = 0; i < batchJournalEntries.length; i += 200) {
+    await prisma.journalEntry.createMany({ data: batchJournalEntries.slice(i, i + 200) });
+  }
+  for (let i = 0; i < batchJournalLines.length; i += 300) {
+    await prisma.journalLine.createMany({ data: batchJournalLines.slice(i, i + 300) });
+  }
+
   console.log(`\n========================================`);
-  console.log(`✅ DEMO DATA SEEDED SUCCESSFULLY!`);
+  console.log(`✅ DEMO DATA SEEDED SUCCESSFULLY TO TODAY (${todayStr})!`);
   console.log(`========================================`);
   console.log(`📊 Total Turfs Created:       ${turfs.length}`);
-  console.log(`⚽ Total Bookings Created:    ${totalBookingsCount}`);
-  console.log(`💳 Total Payments Recorded:   ${totalPaymentsCount}`);
-  console.log(`🛍️ Total Retail Orders:       ${totalOrdersCount}`);
+  console.log(`⚽ Total Bookings Created:    ${allBookings.length}`);
+  console.log(`💳 Total Payments Recorded:   ${allPayments.length}`);
+  console.log(`🛍️ Total Retail Orders:       ${allOrders.length}`);
   console.log(`📦 Inventory Products:        ${createdProducts.length}`);
-  console.log(`🏆 Tournaments Hosted:        3`);
+  console.log(`🏆 Tournaments Hosted:        3 (incl. ongoing Monsoon Super League)`);
   console.log(`🏢 Chart of Accounts:         23 System Accounts`);
-  console.log(`📚 Ledger Journal Entries:    Balanced Double-Entry accounting posted`);
+  console.log(`📚 Ledger Journal Entries:    ${batchJournalEntries.length} Balanced Entries (${batchJournalLines.length} lines)`);
   console.log(`========================================\n`);
 
   await prisma.$disconnect();
